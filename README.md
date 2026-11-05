@@ -81,3 +81,7 @@ Supabase Free ระบุ 2 ล้าน realtime messages ต่อเดื�
 ระหว่างทดสอบแบบนี้ต้องเปิด Next.js ที่ port3000 เสียบ USB และเปิดให้บริการในแอป หากไม่มี GPS ใหม่ หน้าเว็บจะแสดงข้อมูลเก่าตามเวลา ไม่คงสถานะสดไว้เอง
 
 ก่อนใช้โดยไม่ต่อ USB ให้ deploy บน Vercel ตั้งค่า env โดยใช้ค่าจริงของ URL และ publishable key สำหรับตัวแปร `NEXT_PUBLIC_` และตั้งคีย์เซิร์ฟเวอร์กับ `DRIVER_TOKENS_JSON` ให้ตรงกับใน `.env.local` ห้ามนำค่าที่เป็นข้อความ `${...}` ไปวางบน Vercel แทนค่าจริง จากนั้นเปลี่ยน endpoint ในแอปเป็น HTTPS URL ของ deployment รหัสรถและ token ของคันที่ 1 ตั้งในมือถือไว้แล้ว คีย์ลับ Supabase ไม่ได้อยู่ในมือถือ
+
+## Production ที่ตรวจใช้งานจริงแล้ว
+
+เว็บจริงคือ https://unigo3.vercel.app/ และ endpoint ใน Zenfone ตั้งเป็น `https://unigo3.vercel.app/api/positions` แล้ว ทดสอบการส่ง GPS จากมือถือหลังถอด USB ผ่าน Vercel ไป Supabase และหน้าเว็บแล้ว ไม่ต้องเปิด Next.js ในคอมพิวเตอร์สำหรับการใช้งานนี้ ดูผลตรวจใน `docs/PRODUCTION_VERIFICATION.md`

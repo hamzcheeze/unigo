@@ -3,9 +3,9 @@ import { z } from "zod";
 export const vehicleIdSchema = z.enum(["SHUTTLE-01", "SHUTTLE-02", "SHUTTLE-03"]);
 export type VehicleId = z.infer<typeof vehicleIdSchema>;
 export const VEHICLES = [
-  { id: vehicleIdSchema.enum["SHUTTLE-01"], label: "รถคันที่ 1", color: "#087f68" },
-  { id: vehicleIdSchema.enum["SHUTTLE-02"], label: "รถคันที่ 2", color: "#4265dc" },
-  { id: vehicleIdSchema.enum["SHUTTLE-03"], label: "รถคันที่ 3", color: "#bf7830" },
+  { id: vehicleIdSchema.enum["SHUTTLE-01"], label: "คันที่ 1", color: "#EE0578" },
+  { id: vehicleIdSchema.enum["SHUTTLE-02"], label: "คันที่ 2", color: "#EE0578" },
+  { id: vehicleIdSchema.enum["SHUTTLE-03"], label: "คันที่ 3", color: "#EE0578" },
 ];
 const coordinateLatitude = z.number().finite().min(-90).max(90);
 const coordinateLongitude = z.number().finite().min(-180).max(180);

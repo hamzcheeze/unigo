@@ -5,12 +5,12 @@ import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import { VEHICLES, positionSchema, mergePosition, freshness, type Position, type VehicleId } from "@/lib/domain";
 import { VehicleMap } from "./vehicle-map";
-import { BusIcon, PinIcon } from "./icons";
+import { BusIcon } from "./icons";
 
 type Connection = "connecting" | "connected" | "reconnecting" | "offline" | "unconfigured" | "demo" | "usb";
 const connectionLabels: Record<Connection, string> = {
-  connecting: "กำลังเชื่อมต่อ", connected: "เชื่อมต่อข้อมูลสด", reconnecting: "กำลังเชื่อมต่อใหม่",
-  offline: "การเชื่อมต่อขัดข้อง", unconfigured: "ยังไม่ได้เชื่อมต่อระบบรถ", demo: "กำลังดูข้อมูลจำลอง", usb: "เชื่อมต่อมือถือผ่าน USB",
+  connecting: "กำลังเชื่อมต่อ", connected: "เชื่อมต่อแล้ว", reconnecting: "กำลังเชื่อมต่อใหม่",
+  offline: "การเชื่อมต่อขัดข้อง", unconfigured: "ยังไม่ได้เชื่อมต่อ", demo: "ข้อมูลจำลอง", usb: "ทดสอบผ่าน USB",
 };
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -137,47 +137,38 @@ export function ResidentTracker({ demo, usb = false }: { demo: boolean; usb?: bo
 
   return <main className="site">
     <header className="header">
-      <a href="/" className="brand" aria-label="Gogo หน้าแรก"><span className="brand-mark"><BusIcon size={25}/></span><span>gogo<span className="brand-dot">.</span></span></a>
-      <span className="header-divider" />
-      <span className="header-title">UNIO CHARAN 3</span>
+      <h1 className="header-title"><span className="header-name">UNiO Charan 3</span>{" "}<span className="header-descriptor">รถชมพู</span></h1>
       <div className={"connection connection-" + connection} role="status"><span className="small-dot" />{connectionLabels[connection]}</div>
     </header>
 
-    {usb && <div className="demo-banner"><span><strong>พิกัดจริงผ่าน USB</strong> ต้องเชื่อมมือถือกับคอมพิวเตอร์ · ทดสอบเฉพาะรถคันที่ 1</span><a href="/">กลับหน้าระบบจริง</a></div>}
-
-    {demo && <div className="demo-banner"><span><strong>โหมดสาธิต</strong> ตำแหน่งและการเคลื่อนที่ทั้งหมดเป็นข้อมูลจำลอง</span><a href="/">กลับไปดูรถจริง <span aria-hidden="true">↗</span></a></div>}
-
-    <section className="intro">
-      <div><p className="eyebrow">YOUR EVERYDAY SHUTTLE</p><h1>รถอยู่ไหน เปิดดูได้เลย<span>.</span></h1><p className="intro-copy">เลือกคันที่คุณจะขึ้น แล้วดูตำแหน่งล่าสุดก่อนออกไปรอ</p></div>
-      <div className="service-tag"><span className="service-icon"><BusIcon size={21}/></span><span>รถรับส่งประจำคอนโด<strong>UNIO จรัญฯ 3 · รถ 3 คัน</strong></span></div>
-    </section>
+    {usb && <div className="demo-banner"><span><strong>ทดสอบผ่าน USB</strong> เชื่อมต่อเฉพาะรถคันที่ 1</span><a href="/">ดูระบบจริง</a></div>}
+    {demo && <div className="demo-banner"><span><strong>ข้อมูลจำลอง</strong> ตำแหน่งและการเคลื่อนที่ใช้สำหรับสาธิต</span><a href="/">ดูรถจริง</a></div>}
 
     <nav className="vehicle-tabs" aria-label="เลือกรถรับส่ง">
-      {VEHICLES.map((item, index) => <button key={item.id} className={"vehicle-tab " + (selectedId === item.id ? "selected" : "")} aria-pressed={selectedId === item.id} onClick={() => setSelectedId(item.id)}>
-        <span className="tab-icon" style={{ color: item.color }}><BusIcon size={24}/></span><span className="tab-text"><strong>{item.label}</strong><small>{item.id}</small></span><span className="tab-number">0{index + 1}</span>
-        {selectedId === item.id && <span className="selected-tick" aria-hidden="true">✓</span>}
+      {VEHICLES.map((item) => <button key={item.id} className={"vehicle-tab " + (selectedId === item.id ? "selected" : "")} aria-pressed={selectedId === item.id} onClick={() => setSelectedId(item.id)}>
+        <BusIcon size={20}/><span>{item.label}</span>
       </button>)}
     </nav>
 
     <section className="tracker-layout" aria-label="ตำแหน่งรถที่เลือก">
       <VehicleMap key={selectedId} position={position} color={vehicle.color} number={number} stale={!isLive}/>
-      <aside className="vehicle-panel">
-        <div className="panel-heading"><span className="eyebrow">รถที่คุณกำลังดู</span><span className="plate">{selectedId}</span></div>
-        <div className="vehicle-title"><div className="large-bus" style={{ color: vehicle.color }}><BusIcon size={35}/></div><div><h2>{vehicle.label}</h2><p>รถรับส่งประจำคอนโด</p></div></div>
-        <div className={"gps-status " + (!position ? "waiting" : isLive && !poorGps ? "fresh" : "stale")} role="status"><span className="small-dot"/><strong>{status}</strong><span>{position && quality.ageSeconds === null ? "ตรวจสอบเวลาในอุปกรณ์" : ageLabel(quality.ageSeconds)}</span></div>
+      <div className="vehicle-panel">
+        <div className="status-strip">
+          <div className="vehicle-status"><h2>{vehicle.label}</h2><div className={"gps-status " + (!position ? "waiting" : isLive && !poorGps ? "fresh" : "stale")} role="status"><span className="small-dot"/><strong>{status}</strong><span>{position && quality.ageSeconds === null ? "ตรวจสอบเวลาในอุปกรณ์" : ageLabel(quality.ageSeconds)}</span></div></div>
+          {position && <dl className="metrics"><div><dt>ความเร็ว</dt><dd>{position.speed_meters_per_second === null ? "ไม่ทราบ" : Math.round(position.speed_meters_per_second * 3.6)}{position.speed_meters_per_second !== null && <small> กม./ชม.</small>}</dd></div><div><dt>ความแม่นยำโดยประมาณ</dt><dd>{position.accuracy_meters === null ? "ไม่ทราบ" : Math.round(position.accuracy_meters)}{position.accuracy_meters !== null && <small> เมตร</small>}</dd></div></dl>}
+        </div>
 
-        {connection === "unconfigured" ? <div className="setup-note"><strong>พร้อมเชื่อมต่อกับรถของคุณ</strong><p>ยังไม่ได้ตั้งค่าระบบรับพิกัด จึงยังไม่มีตำแหน่งรถจริงให้ดู</p><a className="demo-link" href="/?demo=1">ลองดูหน้าจอสาธิต <span aria-hidden="true">↗</span></a></div> :
-          !position ? <div className="waiting-note"><PinIcon size={26}/><p>{usb && selectedId !== "SHUTTLE-01" ? "โหมด USB เชื่อมเฉพาะรถคันที่ 1" : demo && selectedId === "SHUTTLE-03" ? "ตัวอย่างรถที่ยังไม่ได้ส่งตำแหน่ง" : "รอคนขับเปิดให้บริการและส่งตำแหน่งจากแอป"}</p></div> :
-          <><div className="metrics"><div><span>ความเร็วจาก GPS</span><strong>{position.speed_meters_per_second === null ? "ไม่ทราบ" : Math.round(position.speed_meters_per_second * 3.6)}{position.speed_meters_per_second !== null && <small> กม./ชม.</small>}</strong></div><div><span>รัศมีที่ GPS ประเมิน</span><strong>{position.accuracy_meters === null ? "ไม่ทราบ" : Math.round(position.accuracy_meters)}{position.accuracy_meters !== null && <small> เมตร</small>}</strong></div></div>
-          <dl className="position-details"><div><dt>GPS บันทึกเมื่อ</dt><dd>{timeLabel(position.captured_at)} น.</dd></div><div><dt>ระบบรับข้อมูลเมื่อ</dt><dd>{timeLabel(position.received_at)} น.</dd></div><div><dt>ละติจูด / ลองจิจูด</dt><dd className="coordinates">{position.latitude.toFixed(6)}<br/>{position.longitude.toFixed(6)}</dd></div></dl>
-          {!isLive && <p className="warning-copy">ตำแหน่งนี้อาจไม่ใช่ตำแหน่งปัจจุบันของรถ กรุณารอข้อมูลใหม่ก่อนตัดสินใจออกไปรอ</p>}</>}
+        {connection === "unconfigured" ? <div className="setup-note"><p>ยังไม่ได้เชื่อมต่อระบบพิกัด</p><a className="demo-link" href="/?demo=1">ดูตัวอย่าง</a></div> :
+          !position ? <p className="waiting-note">{usb && selectedId !== "SHUTTLE-01" ? "โหมด USB เชื่อมเฉพาะรถคันที่ 1" : demo && selectedId === "SHUTTLE-03" ? "ตัวอย่างรถที่ยังไม่ได้ส่งพิกัด" : "ยังไม่ได้รับพิกัดจากรถคันนี้"}</p> :
+          <>
+            {!isLive && <p className="warning-copy">ยังไม่ได้รับพิกัดใหม่ ตำแหน่งรถอาจเปลี่ยนแล้ว</p>}
+            <div className="position-summary"><p></p><details className="position-disclosure"><summary>รายละเอียดพิกัด</summary><dl className="position-details"><div><dt>GPS บันทึกเมื่อ</dt><dd>{timeLabel(position.captured_at)} น.</dd></div><div><dt>ระบบรับข้อมูลเมื่อ</dt><dd>{timeLabel(position.received_at)} น.</dd></div><div><dt>ละติจูด / ลองจิจูด</dt><dd className="coordinates">{position.latitude.toFixed(6)}, {position.longitude.toFixed(6)}</dd></div></dl></details></div>
+          </>}
         {error && <p className="error-copy" role="alert">{error}</p>}
         {(connection === "offline" || connection === "reconnecting" || error) && <button className="reconnect-button" onClick={reconnect}>เชื่อมต่อใหม่</button>}
-        <div className="panel-footer"><span className="info-icon">i</span><p>วงกลมรอบรถแสดงค่าประมาณจาก GPS ตำแหน่งอาจคลาดเคลื่อนใกล้อาคารสูง</p></div>
-      </aside>
+      </div>
     </section>
 
-    <section className="stop-list" aria-label="จุดรับส่ง"><span>จุดรับส่ง</span><strong>MRT ท่าพระ <small>ขาไป</small></strong><span aria-hidden="true">→</span><strong>BTS ตลาดพลู</strong><span aria-hidden="true">→</span><strong>MRT ท่าพระ <small>ขากลับ</small></strong><p>ชื่อจุดรับส่ง ยังไม่แสดงเส้นทางหรือเวลาถึง</p></section><section className="bottom-note"><div><span className="note-line"/><p>ดูตำแหน่งก่อน แล้วค่อยออกไปรอ</p></div><span>อัปเดตอัตโนมัติเมื่อรถส่งพิกัดใหม่ ไม่ต้องรีเฟรชหน้า</span></section>
-    <footer className="footer"><span>gogo. <span>ใกล้ขึ้นอีกนิด ทุกการเดินทาง</span></span><span>แสดงเฉพาะรถคันที่เลือก · ยังไม่มีเวลาถึงโดยประมาณ</span></footer>
+    <section className="stop-list" aria-labelledby="stops-heading"><h2 id="stops-heading">จุดรับ-ส่ง</h2><ul><li>MRT ท่าพระ (ขาไป) →</li><li>BTS ตลาดพลู →</li><li>MRT ท่าพระ (ขากลับ)</li></ul></section>
   </main>;
 }
