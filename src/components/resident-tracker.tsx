@@ -13,7 +13,7 @@ const connectionLabels: Record<Connection, string> = {
   offline: "การเชื่อมต่อขัดข้อง", unconfigured: "ยังไม่ได้เชื่อมต่อระบบรถ", demo: "กำลังดูข้อมูลจำลอง", usb: "เชื่อมต่อมือถือผ่าน USB",
 };
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const configured = Boolean(supabaseUrl && supabaseKey);
 
 function demoPosition(vehicleId: VehicleId, tick: number): Position | null {

@@ -28,7 +28,7 @@ SQL ให้ผู้ชมอ่านตำแหน่งล่าสุด�
 คัดลอก `.env.example` เป็น `.env.local` แล้วใส่ค่าให้ครบ
 
 - `NEXT_PUBLIC_SUPABASE_URL` เป็น Project URL
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY` เป็น anon key ที่อ่านข้อมูลตาม RLS ได้
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` เป็น publishable key ที่อ่านข้อมูลตาม RLS ได้ หากใช้ anon key รุ่นเดิม ให้ตั้ง `NEXT_PUBLIC_SUPABASE_ANON_KEY` แทน โดยเว็บเลือก publishable key ก่อน
 - `SUPABASE_SERVICE_ROLE_KEY` เป็นคีย์ฝั่งเซิร์ฟเวอร์เท่านั้น
 - `DRIVER_TOKENS_JSON` เป็น JSON object ที่มีคีย์ `SHUTTLE-01`, `SHUTTLE-02`, `SHUTTLE-03` แต่ละค่าคือ token สุ่มที่ต่างกัน ความยาว 32–256 ตัว ใช้ตัวอักษร ตัวเลข `_` หรือ `-`
 
@@ -73,3 +73,11 @@ npm run build
 Supabase Free ระบุ 2 ล้าน realtime messages ต่อเดือน และ 200 peak connections จำนวนข้อความเพิ่มตามผู้ชมที่เปิดดู Vercel Hobby จำกัดการใช้แบบ personal non-commercial จึงไม่รับประกันว่าใช้กับบริการคอนโดได้ฟรีหรือเข้าเงื่อนไขแผนเสมอ เลือกแพ็กเกจให้ตรงการใช้งานจริง
 
 แผนที่ใช้ OpenStreetMap tiles สำหรับเริ่มทดสอบ ต้องรักษา attribution และตรวจนโยบาย tile provider ก่อนใช้งานจำนวนมาก โค้ดเก็บเพียงตำแหน่งล่าสุดของแต่ละรถ ไม่มีประวัติเส้นทางและไม่มี ETA ที่เดาจากระยะเส้นตรง ตำแหน่งคอนโดและสถานีจริงยังรอข้อมูลจากผู้ใช้
+
+## การทดสอบกับมือถือจริงที่เชื่อมต่อแล้ว
+
+ทดสอบแอปประจำรถรุ่น 0.2.0 ส่ง GPS จริงของ SHUTTLE-01 ผ่าน `adb reverse tcp:3000 tcp:3000` เข้า API ในคอมพิวเตอร์ แล้วบันทึกและกระจายต่อผ่าน Supabase ได้แล้ว เปิดเว็บปกติที่ `http://localhost:3000/` โดยไม่ใช้ query `demo` หรือ `usb`
+
+ระหว่างทดสอบแบบนี้ต้องเปิด Next.js ที่ port3000 เสียบ USB และเปิดให้บริการในแอป หากไม่มี GPS ใหม่ หน้าเว็บจะแสดงข้อมูลเก่าตามเวลา ไม่คงสถานะสดไว้เอง
+
+ก่อนใช้โดยไม่ต่อ USB ให้ deploy บน Vercel ตั้งค่า env โดยใช้ค่าจริงของ URL และ publishable key สำหรับตัวแปร `NEXT_PUBLIC_` และตั้งคีย์เซิร์ฟเวอร์กับ `DRIVER_TOKENS_JSON` ให้ตรงกับใน `.env.local` ห้ามนำค่าที่เป็นข้อความ `${...}` ไปวางบน Vercel แทนค่าจริง จากนั้นเปลี่ยน endpoint ในแอปเป็น HTTPS URL ของ deployment รหัสรถและ token ของคันที่ 1 ตั้งในมือถือไว้แล้ว คีย์ลับ Supabase ไม่ได้อยู่ในมือถือ
