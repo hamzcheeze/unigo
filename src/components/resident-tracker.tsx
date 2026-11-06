@@ -156,9 +156,8 @@ export function ResidentTracker({ demo, usb = false }: { demo: boolean; usb?: bo
     <section className="pickup-panel" aria-labelledby="pickup-heading">
       <div className="pickup-heading"><h2 id="pickup-heading">ขึ้นรถกลับคอนโด</h2><button className="locate-pickup" onClick={pickup.locate}>หาจุดขึ้นรถใกล้ฉัน</button></div>
       <p role="status">{pickup.locationMessage}</p>
-      <p className="pickup-privacy">ใช้ตำแหน่งบนเครื่องของคุณเท่านั้น ไม่ส่งพิกัดของคุณไปยังเซิร์ฟเวอร์</p>
       <div className="pickup-options">{PICKUP_STOPS.map(stop => <button key={stop.id} aria-pressed={pickup.selected?.id === stop.id} onClick={() => pickup.select(stop.id)}>{stop.label}</button>)}</div>
-      {pickup.selected && <div className="pickup-eta" role="status"><strong>{pickup.manual ? "จุดที่เลือก" : "จุดขึ้นรถใกล้คุณ"} · {pickup.selected.label}</strong>{pickup.route ? <><span className="eta-number">ประมาณ {Math.max(1, Math.ceil(pickup.route.durationSeconds / 60))} นาที</span><span>{(pickup.route.distanceMeters / 1000).toFixed(1)} กม. ตามเส้นทางถนน</span><small>คำนวณตามการจราจร ไม่รวมเวลาจอดรับคน เส้นทางจริงของรถอาจต่างออกไป</small><small>เส้นทางและเวลาโดย <a href="https://www.tomtom.com/" target="_blank" rel="noreferrer">TomTom</a></small></> : <span>{pickup.routeStatus || "กำลังอัปเดตเส้นทาง"}</span>}</div>}
+      {pickup.selected && <div className="pickup-eta" role="status"><strong>{pickup.manual ? "จุดที่เลือก" : "จุดขึ้นรถใกล้คุณ"} · {pickup.selected.label}</strong>{pickup.route ? <><span className="eta-number">ประมาณ {Math.max(1, Math.ceil(pickup.route.durationSeconds / 60))} นาที</span><span>{(pickup.route.distanceMeters / 1000).toFixed(1)} กม. ตามเส้นทางถนน</span><small>คำนวณตามการจราจร ไม่รวมเวลาจอดรับคน เส้นทางจริงของรถอาจต่างออกไป</small></> : <span>{pickup.routeStatus || "กำลังอัปเดตเส้นทาง"}</span>}</div>}
     </section>
 
     <section className="tracker-layout" aria-label="ตำแหน่งรถที่เลือก">
