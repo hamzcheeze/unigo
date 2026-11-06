@@ -13,8 +13,8 @@ test("50 metre pickup includes GPS uncertainty", () => {
   assert.equal(withinPickupRadius({ latitude: 0.001, longitude: 0, accuracy: 0 }, stop), false);
 });
 test("old or implausibly future resident GPS cannot select a stop", () => {
-  assert.equal(isFreshLocation(70000, 100000), true);
-  assert.equal(isFreshLocation(69999, 100000), false);
+  assert.equal(isFreshLocation(40000, 100000), true);
+  assert.equal(isFreshLocation(39999, 100000), false);
   assert.equal(isFreshLocation(105001, 100000), false);
   assert.equal(isFreshLocation(NaN, 100000), false);
 });

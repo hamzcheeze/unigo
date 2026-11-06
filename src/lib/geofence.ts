@@ -5,8 +5,10 @@ export function distanceMeters(a: { latitude: number; longitude: number }, b: { 
 }
 
 
+export const RESIDENT_LOCATION_MAX_AGE_MS = 60000;
+
 export function isFreshLocation(timestamp: number, now: number) {
-  return Number.isFinite(timestamp) && now - timestamp <= 30000 && timestamp - now <= 5000;
+  return Number.isFinite(timestamp) && now - timestamp <= RESIDENT_LOCATION_MAX_AGE_MS && timestamp - now <= 5000;
 }
 
 export function withinPickupRadius(location: { latitude: number; longitude: number; accuracy: number }, stop: { latitude: number; longitude: number }) {

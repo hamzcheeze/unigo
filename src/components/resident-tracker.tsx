@@ -3,17 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
-import { VEHICLES, positionSchema, mergePosition, freshness, type Position, type VehicleId } from "@/lib/domain";
+import { VEHICLES, vehicleIdSchema, positionSchema, mergePosition, freshness, type Position, type VehicleId } from "@/lib/domain";
 import { VehicleMap } from "./vehicle-map";
 import { BusIcon } from "./icons";
 import { PICKUP_STOPS } from "@/lib/pickups";
 import { usePickup } from "./use-pickup";
 
 type Connection = "connecting" | "connected" | "reconnecting" | "offline" | "unconfigured" | "demo" | "usb";
-const connectionLabels: Record<Connection, string> = {
-  connecting: "กำลังเชื่อมต่อ", connected: "เชื่อมต่อแล้ว", reconnecting: "กำลังเชื่อมต่อใหม่",
-  offline: "การเชื่อมต่อขัดข้อง", unconfigured: "ยังไม่ได้เชื่อมต่อ", demo: "ข้อมูลจำลอง", usb: "ทดสอบผ่าน USB",
-};
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const configured = Boolean(supabaseUrl && supabaseKey);
@@ -36,7 +32,7 @@ function demoPosition(vehicleId: VehicleId, tick: number): Position | null {
 const usbEventSchema = z.object({ position: positionSchema.nullable(), connected: z.boolean(), error: z.string().nullable() });
 
 function usePosition(vehicleId: VehicleId, demo: boolean, usb: boolean, refresh: number) {
-  const [position, setPosition] = useState<Position | null>(null);
+  const [positions, setPositions] = useState<Partial<Record<VehicleId, Position>>>({});
   const [connection, setConnection] = useState<Connection>(demo ? "demo" : configured ? "connecting" : "unconfigured");
   const [error, setError] = useState<string | null>(null);
   const [recovery, setRecovery] = useState(0);
@@ -45,17 +41,24 @@ function usePosition(vehicleId: VehicleId, demo: boolean, usb: boolean, refresh:
   useEffect(() => {
     const currentGeneration = ++generation.current;
     const active = () => generation.current === currentGeneration;
-    setPosition(null); setError(null);
+    setPositions({}); setError(null);
     if (demo) {
       setConnection("demo");
       let tick = 1;
-      const update = () => setPosition(demoPosition(vehicleId, tick++));
+      const update = () => {
+        const next: Partial<Record<VehicleId, Position>> = {};
+        for (const vehicle of VEHICLES) {
+          const value = demoPosition(vehicle.id, tick);
+          if (value) next[vehicle.id] = value;
+        }
+        tick++;
+        setPositions(next);
+      };
       update();
       const timer = window.setInterval(update, 1000);
       return () => { generation.current++; window.clearInterval(timer); };
     }
     if (usb) {
-      if (vehicleId !== "SHUTTLE-01") { setConnection("usb"); return; }
       setConnection("connecting");
       const stream = new EventSource("/api/usb-positions");
       stream.onmessage = (event) => {
@@ -67,7 +70,7 @@ function usePosition(vehicleId: VehicleId, demo: boolean, usb: boolean, refresh:
           const value = parsed.data;
           setConnection(value.connected ? "usb" : "offline");
           setError(value.error);
-          if (value.position?.vehicle_id === vehicleId) setPosition(value.position);
+          if (value.position?.vehicle_id === "SHUTTLE-01") setPositions({ "SHUTTLE-01": value.position });
         } catch { setError("อ่านข้อมูล GPS ผ่าน USB ไม่ได้"); }
       };
       stream.onerror = () => { if (active()) { setConnection("reconnecting"); setError("การเชื่อมต่อ USB ขาดหาย กำลังลองใหม่"); } };
@@ -79,18 +82,27 @@ function usePosition(vehicleId: VehicleId, demo: boolean, usb: boolean, refresh:
     const accept = (value: unknown) => {
       const parsed = positionSchema.safeParse(value);
       if (!active()) return;
-      if (!parsed.success || parsed.data.vehicle_id !== vehicleId) { setError("รูปแบบข้อมูลตำแหน่งไม่ถูกต้อง"); return; }
-      setPosition((previous) => mergePosition(previous, parsed.data));
+      if (!parsed.success) { setError("รูปแบบข้อมูลตำแหน่งไม่ถูกต้อง"); return; }
+      setPositions(previous => ({ ...previous, [parsed.data.vehicle_id]: mergePosition(previous[parsed.data.vehicle_id] ?? null, parsed.data) }));
       setError(null);
     };
     const fetchSnapshot = async () => {
-      const result = await client.from("vehicle_positions").select("*").eq("vehicle_id", vehicleId).maybeSingle();
+      const result = await client.from("vehicle_positions").select("*");
       if (!active()) return;
       if (result.error) { setError("โหลดตำแหน่งล่าสุดไม่ได้ กรุณาลองเชื่อมต่อใหม่"); return; }
-      if (result.data) accept(result.data);
+      for (const value of result.data ?? []) accept(value);
     };
-    const channel = client.channel("vehicle:" + vehicleId)
-      .on("postgres_changes", { event: "*", schema: "public", table: "vehicle_positions", filter: "vehicle_id=eq." + vehicleId }, (payload) => accept(payload.new))
+    const channel = client.channel("vehicles")
+      .on("postgres_changes", { event: "*", schema: "public", table: "vehicle_positions" }, (payload) => {
+        if (!active()) return;
+        if (payload.eventType !== "DELETE") { accept(payload.new); return; }
+        const id = vehicleIdSchema.safeParse(payload.old.vehicle_id);
+        if (id.success) setPositions(previous => {
+          const next = { ...previous };
+          delete next[id.data];
+          return next;
+        });
+      })
       .subscribe((status) => {
         if (!active()) return;
         if (status === "SUBSCRIBED") { setConnection("connected"); void fetchSnapshot(); }
@@ -108,8 +120,8 @@ function usePosition(vehicleId: VehicleId, demo: boolean, usb: boolean, refresh:
       window.removeEventListener("online", onOnline); window.removeEventListener("offline", onOffline);
       void client.removeChannel(channel);
     };
-  }, [vehicleId, demo, usb, refresh, recovery]);
-  return { position: position?.vehicle_id === vehicleId ? position : null, connection, error };
+  }, [demo, usb, refresh, recovery]);
+  return { position: positions[vehicleId] ?? null, connection, error };
 }
 
 function ageLabel(seconds: number | null) {
@@ -141,7 +153,6 @@ export function ResidentTracker({ demo, usb = false }: { demo: boolean; usb?: bo
   return <main className="site">
     <header className="header">
       <h1 className="header-title"><span className="header-name">UNiO Charan 3</span>{" "}<span className="header-descriptor">รถชมพู</span></h1>
-      <div className={"connection connection-" + connection} role="status"><span className="small-dot" />{connectionLabels[connection]}</div>
     </header>
 
     {usb && <div className="demo-banner"><span><strong>ทดสอบผ่าน USB</strong> เชื่อมต่อเฉพาะรถคันที่ 1</span><a href="/">ดูระบบจริง</a></div>}
@@ -153,15 +164,25 @@ export function ResidentTracker({ demo, usb = false }: { demo: boolean; usb?: bo
       </button>)}
     </nav>
 
-    <section className="pickup-panel" aria-labelledby="pickup-heading">
-      <div className="pickup-heading"><h2 id="pickup-heading">ขึ้นรถกลับคอนโด</h2><button className="locate-pickup" onClick={pickup.locate}>จุดขึ้นรถใกล้ฉัน</button></div>
-      {pickup.selected ? <div className="pickup-eta" role="status">
-        {pickup.route ? <>
-          <span className="eta-number">ประมาณ {Math.max(1, Math.ceil(pickup.route.durationSeconds / 60))} นาที</span>
-          <span>{(pickup.route.distanceMeters / 1000).toFixed(1)} กม. ตามเส้นทางถนน</span>
-          <small>คำนวณตามสภาพจราจร ไม่รวมเวลาจอดรับคน เส้นทางจริงของรถอาจต่างออกไป</small>
-        </> : <span>{!position ? "ยังไม่ได้เชื่อมต่อระบบพิกัด" : pickup.routeStatus || "กำลังอัพเดตเส้นทาง"}</span>}
-      </div> : <p>เลือกจุดขึ้นรถเพื่อดูเวลาถึงโดยประมาณ</p>}
+    <section className={"pickup-panel" + (pickup.selected ? " pickup-panel-selected" : "")} aria-labelledby="pickup-heading">
+      <div className="pickup-heading"><div className="pickup-intro"><h2 id="pickup-heading">ขึ้นรถกลับคอนโด</h2>{!pickup.selected && <p>เลือกจุดขึ้นรถเพื่อดูเวลาถึงโดยประมาณ</p>}</div><button className="locate-pickup" onClick={pickup.locate}>จุดขึ้นรถใกล้ฉัน</button></div>
+      {pickup.selected ? <div className="pickup-eta" aria-busy={pickup.routeLoading}>
+        <div className="eta-heading">
+          <div className="eta-value" role="status">
+            {pickup.routeLoading ? <span className="eta-skeleton eta-skeleton-number" aria-label="กำลังอัพเดตเวลาถึง" /> :
+              pickup.estimate?.kind === "estimated" ? <span className="eta-number">ประมาณ {Math.max(1, Math.ceil(pickup.estimate.durationSeconds / 60))} นาที</span> :
+              <span>{!position ? "ยังไม่ได้เชื่อมต่อระบบพิกัด" : pickup.routeStatus || "ยังไม่มีเวลาถึงโดยประมาณ"}</span>}
+          </div>
+          {pickup.canRefreshRoute && <button className="refresh-route" aria-label="อัพเดตเส้นทาง" title="อัพเดตเส้นทาง" disabled={pickup.routeLoading} onClick={pickup.refreshRoute}>
+            <svg width="16" height="16" viewBox="0 0 32 32" fill="currentColor" aria-hidden="true"><path d="M9 5.6A12 12 0 0 1 28 16h4l-7 12-7-12h6A8 8 0 0 0 11.3 9.1Z" /><path d="M9 5.6A12 12 0 0 1 28 16h4l-7 12-7-12h6A8 8 0 0 0 11.3 9.1Z" transform="rotate(180 16 16)" /></svg>
+          </button>}
+        </div>
+        {pickup.routeLoading ? <span className="eta-skeleton eta-skeleton-distance" aria-hidden="true" /> :
+          pickup.estimate?.kind === "estimated" && <span>{(pickup.estimate.distanceMeters / 1000).toFixed(1)} กม. ตามเส้นทางถนน</span>}
+        {pickup.routeLoading ? <span className="eta-skeleton eta-skeleton-description" aria-hidden="true" /> :
+          pickup.estimate?.kind === "estimated" && <small>ประเมินจากเส้นทางที่บันทึกไว้ เส้นทางจริงของรถอาจต่างออกไป</small>}
+        {!pickup.routeLoading && pickup.estimate?.kind === "estimated" && pickup.routeNotice && <small role="status">{pickup.routeNotice}</small>}
+      </div> : null}
       {pickup.locationMessage && <p role="status">{pickup.locationMessage}</p>}
       <div className="pickup-options">{PICKUP_STOPS.map(stop => <button key={stop.id} aria-pressed={pickup.selected?.id === stop.id} onClick={() => pickup.select(stop.id)}>{stop.label}</button>)}</div>
     </section>

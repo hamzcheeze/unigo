@@ -20,17 +20,16 @@ button:disabled { cursor: default; opacity: .55; }
 .header-title { flex: 1; min-width: 0; margin: 0; display: flex; align-items: baseline; flex-wrap: wrap; gap: 12px; line-height: 1.2; }
 .header-name { display: block; flex: none; font-size: 40px; font-weight: 700; letter-spacing: -.035em; }
 .header-descriptor { display: block; margin-top: 0; white-space: nowrap; color: var(--action); font-size: 18px; font-weight: 500; line-height: 1.5; letter-spacing: normal; }
-.connection { margin-left: auto; display: flex; gap: 7px; align-items: center; font-size: 12px; color: var(--muted); }
 .small-dot { height: 7px; width: 7px; border-radius: 50%; background: var(--accent); display: inline-block; flex-shrink: 0; }
-.connection-connected .small-dot { background: #087f68; }
-.muted, .connection-offline .small-dot, .connection-unconfigured .small-dot { background: #8d7882; }
-.connection-connecting .small-dot, .connection-reconnecting .small-dot, .connection-demo .small-dot { background: #a86a18; }
+.muted { background: #8d7882; }
 .demo-banner { padding: 12px 16px; background: #fff7e8; border: 1px solid #eddbba; border-radius: 8px; display: flex; gap: 12px; align-items: center; justify-content: space-between; margin: 0 0 16px; font-size: 12px; line-height: 1.6; color: #785220; }
 .demo-banner strong { margin-right: 8px; }
 .demo-banner a { min-height: 44px; display: inline-flex; align-items: center; font-weight: 500; white-space: nowrap; }
 .vehicle-tabs { display: flex; gap: 8px; margin: 4px 0 16px; }
 .vehicle-tab { min-height: 48px; display: flex; align-items: center; justify-content: center; gap: 9px; background: transparent; color: var(--muted); border: 1px solid var(--line); border-radius: 8px; padding: 10px 22px; font-size: 14px; font-weight: 500; }
 .vehicle-tab:hover { background: #fce5ef; border-color: #db9ab7; }
+@keyframes vehicle-online-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .bus-pin .bus-online-dot { animation: none; } }
 .vehicle-tab.selected { border-color: var(--action); background: var(--action); color: white; }
 .tracker-layout { overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: white; }
 .map-shell { position: relative; height: clamp(380px, 56vh, 580px); isolation: isolate; overflow: hidden; background: #eee8eb; border-bottom: 1px solid var(--line); }
@@ -47,8 +46,8 @@ button:disabled { cursor: default; opacity: .55; }
 .map-empty strong { font-size: 15px; color: var(--ink); }
 .map-empty span { color: var(--muted); font-size: 12px; line-height: 1.7; }
 .map-warning { position: absolute; z-index: 500; left: 16px; right: 16px; top: 62px; background: #fff7e8; color: #785220; padding: 9px 11px; font-size: 12px; border-radius: 6px; }
-.bus-pin { display: flex; align-items: center; justify-content: center; position: relative; width: 54px; height: 54px; border-radius: 17px; background: var(--bus-color); color: #fff; border: 3px solid #fff; }
-.bus-pin b { position: absolute; bottom: -8px; right: -7px; border: 2px solid white; border-radius: 50%; background: var(--ink); width: 22px; height: 22px; line-height: 18px; text-align: center; font-size: 12px; }
+.bus-pin { display: flex; align-items: center; justify-content: center; position: relative; width: 36px; height: 36px; border-radius: 12px; background: var(--bus-color); color: #fff; border: 3px solid #fff; }
+.bus-online-dot { position: absolute; bottom: -5px; right: -5px; width: 12px; height: 12px; border: 2px solid white; border-radius: 50%; background: #087f68; animation: vehicle-online-pulse 1.8s ease-in-out infinite; }
 .vehicle-panel { padding: 22px 24px; }
 .status-strip { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
 .vehicle-status h2 { margin: 0 0 8px; font-size: 20px; font-weight: 700; }
@@ -90,7 +89,6 @@ button:disabled { cursor: default; opacity: .55; }
   .header-title { flex-basis: 100%; gap: 8px; }
   .header-name { font-size: clamp(23px, 7.5vw, 32px); }
   .header-descriptor { font-size: 16px; }
-  .connection { width: 100%; margin-left: 0; font-size: 12px; }
   .vehicle-tabs { gap: 7px; margin: 4px 0 12px; }
   .vehicle-tab { flex: 1; min-width: 0; gap: 6px; padding: 10px 7px; font-size: 13px; }
   .vehicle-tab svg { width: 18px; height: 18px; flex-shrink: 0; }
@@ -130,8 +128,8 @@ button:disabled { cursor: default; opacity: .55; }
 }
 
 .pickup-panel { border: 1px solid #e5e5e5; border-radius: 12px; background: #f7f7f7; padding: 16px; margin-bottom: 16px; }
-.pickup-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.pickup-heading h2 { margin: 0; font-size: 18px; font-weight: 700; line-height: 1.5; }
+.pickup-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.pickup-heading h2 { margin: 0; }
 .locate-pickup, .pickup-options button { min-height: 44px; border: 1px solid var(--line); border-radius: 8px; background: white; color: var(--action); padding: 9px 14px; font-size: 13px; }
 .locate-pickup { flex-shrink: 0; }
 .pickup-panel p { color: var(--muted); font-size: 12px; line-height: 1.7; margin: 10px 0 12px; }
@@ -139,18 +137,57 @@ button:disabled { cursor: default; opacity: .55; }
 .pickup-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .pickup-options button { min-width: 0; padding: 10px 8px; text-wrap: balance; }
 .pickup-options button[aria-pressed="true"] { background: var(--action); border-color: var(--action); color: white; }
-.pickup-eta { display: flex; flex-direction: column; gap: 5px; margin: 12px 0; font-size: 13px; }
-.pickup-eta .eta-number { color: var(--action); font-size: 28px; font-weight: 600; line-height: 1.5; }
+.pickup-eta { display: flex; flex-direction: column; gap: 5px; margin: 10px 0 12px; font-size: 13px; }
+.pickup-panel:not(.pickup-panel-selected) .pickup-heading { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0 8px; }
+.pickup-panel:not(.pickup-panel-selected) .pickup-intro { display: contents; }
+.pickup-intro h2 { grid-column: 1; grid-row: 1; }
+.pickup-panel .pickup-intro p { grid-column: 1 / -1; grid-row: 2; margin: 0 0 12px; }
+.pickup-panel:not(.pickup-panel-selected) .locate-pickup { grid-column: 2; grid-row: 1; }
+.pickup-panel-selected { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 8px; row-gap: 5px; }
+.pickup-panel-selected .pickup-heading, .pickup-panel-selected .pickup-eta { display: contents; }
+.pickup-panel-selected .pickup-intro { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.pickup-panel-selected .locate-pickup { grid-column: 2; grid-row: 1; align-self: start; }
+.pickup-panel-selected .eta-heading { grid-column: 1; grid-row: 1; }
+.pickup-panel-selected .pickup-eta > span, .pickup-panel-selected .pickup-eta > small, .pickup-panel-selected > p, .pickup-panel-selected .pickup-options { grid-column: 1 / -1; }
+.pickup-panel-selected .pickup-options { margin-top: 7px; }
+.pickup-panel-selected .eta-skeleton-number { max-width: 100%; }
+@media (min-width: 381px) and (max-width: 500px) {
+  .pickup-panel-selected .eta-heading { gap: 2px; }
+  .pickup-panel-selected .refresh-route { width: 32px; }
+}
+@media (max-width: 380px) {
+  .pickup-panel-selected .eta-heading { grid-column: 1 / -1; }
+  .pickup-panel-selected .locate-pickup { grid-column: 1 / -1; grid-row: 4; margin-top: 3px; }
+}
+.pickup-heading h2, .pickup-eta .eta-number { font-size: 28px; font-weight: 600; line-height: 1.5; }
+.pickup-eta .eta-number { color: var(--action); }
+@media (min-width: 381px) and (max-width: 500px) {
+  .pickup-heading h2, .pickup-panel-selected .pickup-eta .eta-number { font-size: 22px; }
+}
+.eta-heading { display: flex; align-items: center; gap: 8px; }
+.eta-value { min-width: 0; }
+.refresh-route { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: #a3a3a3; }
+.refresh-route:hover { background: radial-gradient(circle at center, #ebebeb 0 13px, transparent 13px); }
+.refresh-route svg { transform-origin: center; }
+.refresh-route:disabled svg { animation: refresh-spin .9s linear infinite; }
+@keyframes refresh-spin { to { transform: rotate(360deg); } }
+.eta-skeleton { display: block; border-radius: 6px; background: linear-gradient(90deg, #e5e5e5 25%, #f0f0f0 50%, #e5e5e5 75%); background-size: 200% 100%; animation: eta-shimmer 1.5s linear infinite; }
+.eta-skeleton-number { width: min(210px, 52vw); height: 42px; }
+.eta-skeleton-distance { width: 150px; height: 21px; }
+.eta-skeleton-description { width: 90%; height: 18px; }
+@keyframes eta-shimmer { to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .eta-skeleton, .refresh-route:disabled svg { animation: none; } }
 .pickup-eta small { color: var(--muted); font-size: 11px; }
 .pickup-label { color: var(--ink); border-color: var(--line); box-shadow: none; font-family: inherit; }
 @media (max-width: 700px) {
   .pickup-panel { padding: 12px; margin-bottom: 12px; }
   .pickup-heading { gap: 8px; flex-wrap: wrap; }
-  .pickup-heading h2 { font-size: 17px; }
   .locate-pickup { font-size: 12px; padding: 8px 10px; }
   .pickup-options button { font-size: 12px; }
 }
 @media (max-width: 380px) {
+  .pickup-panel:not(.pickup-panel-selected) .pickup-heading { grid-template-columns: minmax(0, 1fr); }
+  .pickup-panel:not(.pickup-panel-selected) .locate-pickup { grid-column: 1; grid-row: 3; margin-bottom: 12px; }
   .pickup-heading { align-items: stretch; flex-direction: column; }
   .locate-pickup { width: 100%; }
 }

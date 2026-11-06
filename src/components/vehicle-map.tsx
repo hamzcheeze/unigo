@@ -17,6 +17,7 @@ export function VehicleMap({ position, color, number, stale, selection, route }:
   const routeFitPending = useRef(false);
   const map = useRef<Map | null>(null);
   const marker = useRef<Marker | null>(null);
+  const markerAppearance = useRef<string | null>(null);
   const routeLine = useRef<Polyline | null>(null);
   const circle = useRef<Circle | null>(null);
   const library = useRef<Leaflet | null>(null);
@@ -55,17 +56,22 @@ export function VehicleMap({ position, color, number, stale, selection, route }:
     const L = library.current;
     if (!ready || !instance || !L) return;
     if (!position) {
-      marker.current?.remove(); marker.current = null;
+      marker.current?.remove(); marker.current = null; markerAppearance.current = null;
       circle.current?.remove(); circle.current = null;
       lastVehicle.current = null;
       return;
     }
     const point: [number, number] = [position.latitude, position.longitude];
     const actualColor = stale ? "#8D7882" : color;
-    const html = '<span class="bus-pin" style="--bus-color:' + actualColor + '"><svg width="23" height="23" viewBox="0 0 24 24" fill="none"><rect x="5" y="3" width="14" height="16" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M5 10h14M8 19v2m8-2v2" stroke="currentColor" stroke-width="1.8"/><circle cx="8.5" cy="15" r="1.2" fill="currentColor"/><circle cx="15.5" cy="15" r="1.2" fill="currentColor"/></svg><b>' + number + '</b></span>';
-    const icon = L.divIcon({ html, className: "vehicle-pin", iconSize: [58, 58], iconAnchor: [29, 29] });
-    if (marker.current) marker.current.setLatLng(point).setIcon(icon);
-    else marker.current = L.marker(point, { icon, title: "คันที่ " + number }).addTo(instance);
+    const html = '<span class="bus-pin" style="--bus-color:' + actualColor + '"><svg width="23" height="23" viewBox="0 0 24 24" fill="none"><rect x="5" y="3" width="14" height="16" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M5 10h14M8 19v2m8-2v2" stroke="currentColor" stroke-width="1.8"/><circle cx="8.5" cy="15" r="1.2" fill="currentColor"/><circle cx="15.5" cy="15" r="1.2" fill="currentColor"/></svg>' + (stale ? '' : '<span class="bus-online-dot" role="img" aria-label="กำลังส่งพิกัด"></span>') + '</span>';
+    const appearance = actualColor + ":" + number + ":" + stale;
+    marker.current?.setLatLng(point);
+    if (!marker.current || markerAppearance.current !== appearance) {
+      const icon = L.divIcon({ html, className: "vehicle-pin", iconSize: [36, 36], iconAnchor: [18, 18] });
+      if (marker.current) marker.current.setIcon(icon);
+      else marker.current = L.marker(point, { icon, title: "คันที่ " + number }).addTo(instance);
+      markerAppearance.current = appearance;
+    }
     if (position.accuracy_meters !== null) {
       if (!circle.current) circle.current = L.circle(point, { radius: position.accuracy_meters, color: actualColor, fillOpacity: .10, weight: 1 }).addTo(instance);
       else circle.current.setLatLng(point).setRadius(position.accuracy_meters).setStyle({ color: actualColor });
