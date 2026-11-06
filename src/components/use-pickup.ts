@@ -50,7 +50,7 @@ export function usePickup({ position, vehicleId, now, demo }: { position: Positi
     if (!stopId) { setRouteStatus("เลือกจุดขึ้นรถเพื่อดูเส้นทาง"); return; }
     if (demo) { setRouteStatus("โหมดตัวอย่างไม่คำนวณเวลาถึงจุดขึ้นรถ"); return; }
     if (!live || !visible) { setRouteStatus("รอตำแหน่งรถที่ชัดเจนและเป็นปัจจุบัน"); return; }
-    setRouteStatus("รออัปเดตเส้นทางรอบถัดไป");
+    setRouteStatus("รออัพเดตเส้นทางรอบถัดไป");
     let active = true;
     let inFlight = false;
     const controller = new AbortController();
@@ -60,7 +60,7 @@ export function usePickup({ position, vehicleId, now, demo }: { position: Positi
       if (Date.now() - (lastRequests.current.get(key) ?? 0) < 30000) return;
       lastRequests.current.set(key, Date.now());
       inFlight = true;
-      setRouteStatus("กำลังหาเส้นทาง");
+      setRouteStatus("กำลังหาเส้นทาง...");
       try {
         const response = await fetch("/api/route", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ vehicleId, stopId }), signal: controller.signal });
         if (!response.ok) throw new Error(response.status === 503 ? "ยังไม่พร้อมแสดงเส้นทางและเวลาถึง" : "โหลดเส้นทางไม่ได้ กำลังลองใหม่");
@@ -86,7 +86,7 @@ export function usePickup({ position, vehicleId, now, demo }: { position: Positi
     setEnabled(true);
     setAttempt(value => value + 1);
   };
-  let locationMessage = "ใช้ตำแหน่งของคุณเพื่อหาจุดขึ้นรถที่ใกล้ที่สุด";
+  let locationMessage: string | null = null;
   if (location.kind === "searching") locationMessage = "กำลังหาตำแหน่งของคุณ";
   else if (location.kind === "denied") locationMessage = "ยังไม่ได้อนุญาตตำแหน่ง เลือกจุดขึ้นรถเองได้";
   else if (location.kind === "unavailable") locationMessage = "หาตำแหน่งไม่ได้ ลองใหม่หรือเลือกจุดขึ้นรถเอง";

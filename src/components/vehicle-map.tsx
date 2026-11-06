@@ -11,6 +11,10 @@ type Leaflet = typeof import("leaflet");
 
 export function VehicleMap({ position, color, number, stale, selection, route }: Props) {
   const element = useRef<HTMLDivElement>(null);
+  const latestPosition = useRef(position);
+  latestPosition.current = position;
+  const fittedSelection = useRef<PickupSelection | null>(null);
+  const routeFitPending = useRef(false);
   const map = useRef<Map | null>(null);
   const marker = useRef<Marker | null>(null);
   const routeLine = useRef<Polyline | null>(null);
@@ -40,7 +44,7 @@ export function VehicleMap({ position, color, number, stale, selection, route }:
       }).addTo(instance);
       tiles.on("tileerror", () => setTileError(true));
       tiles.on("tileload", () => setTileError(false));
-      instance.on("dragstart", () => { followRef.current = false; setFollow(false); });
+      instance.on("dragstart", () => { routeFitPending.current = false; followRef.current = false; setFollow(false); });
       setReady(true);
     }).catch(() => { if (!cancelled) setError(true); });
     return () => { cancelled = true; map.current?.remove(); map.current = null; marker.current = null; circle.current = null; };
@@ -87,17 +91,32 @@ export function VehicleMap({ position, color, number, stale, selection, route }:
   }, [route, ready]);
 
   useEffect(() => {
+    const instance = map.current;
+    const vehiclePosition = latestPosition.current;
     const stop = PICKUP_STOPS.find(value => value.id === selection?.stopId);
-    if (!ready || !map.current || !stop) return;
+    if (!ready || !instance || !stop || !selection || !vehiclePosition) return;
+    const newSelection = fittedSelection.current !== selection;
+    const selectedRoute = route?.stopId === stop.id && route.vehicleId === vehiclePosition.vehicle_id ? route : null;
+    if (newSelection) {
+      fittedSelection.current = selection;
+      routeFitPending.current = true;
+    }
+    if (!newSelection && !(selectedRoute && routeFitPending.current)) return;
+    const bounds: [number, number][] = [
+      [vehiclePosition.latitude, vehiclePosition.longitude],
+      [stop.latitude, stop.longitude],
+      ...(selectedRoute?.points ?? []),
+    ];
     followRef.current = false; setFollow(false);
-    map.current.stop().setView([stop.latitude, stop.longitude], 17);
-  }, [selection, ready]);
+    instance.stop().fitBounds(bounds, { padding: [65, 65], maxZoom: 16 });
+    if (selectedRoute) routeFitPending.current = false;
+  }, [selection, route, ready]);
 
   return <div className="map-shell">
     <div ref={element} className="map-canvas" aria-label="แผนที่ตำแหน่งรถคันที่เลือก" />
-    {(!ready || error) && <div className="map-cover"><span className="map-cover-icon">◎</span><strong>{error ? "เปิดแผนที่ไม่ได้" : "กำลังเปิดแผนที่"}</strong><p>{error ? "ดูสถานะพิกัดและเวลาอัปเดตด้านล่างได้" : "รอสักครู่"}</p></div>}
+    {(!ready || error) && <div className="map-cover"><span className="map-cover-icon">◎</span><strong>{error ? "เปิดแผนที่ไม่ได้" : "กำลังเปิดแผนที่"}</strong><p>{error ? "ดูสถานะพิกัดและเวลาอัพเดตด้านล่างได้" : "รอสักครู่"}</p></div>}
     {tileError && <div className="map-warning" role="status">โหลดพื้นแผนที่ไม่ครบ กรุณาตรวจสอบอินเทอร์เน็ต</div>}
     <div className="map-caption"><span className={position && !stale ? "small-dot" : "small-dot muted"} />{position ? stale ? "ตำแหน่งล่าสุดที่ได้รับ" : "ตำแหน่งจาก GPS ของรถ" : "ยังไม่มีตำแหน่งรถ"}</div>
-    <button className={"follow-button " + (follow ? "following" : "")} disabled={!position} onClick={() => { if (!position) return; followRef.current = true; setFollow(true); map.current?.setView([position.latitude, position.longitude], 16); }}><TargetIcon />{follow ? "ติดตามตำแหน่ง" : "กลับไปที่รถ"}</button>
+    <button className={"follow-button " + (follow ? "following" : "")} disabled={!position} onClick={() => { if (!position) return; routeFitPending.current = false; followRef.current = true; setFollow(true); map.current?.setView([position.latitude, position.longitude], 16); }}><TargetIcon />{follow ? "ติดตามตำแหน่ง" : "กลับไปที่รถ"}</button>
   </div>;
 }

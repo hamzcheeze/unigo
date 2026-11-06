@@ -155,12 +155,19 @@ export function ResidentTracker({ demo, usb = false }: { demo: boolean; usb?: bo
 
     <section className="pickup-panel" aria-labelledby="pickup-heading">
       <div className="pickup-heading"><h2 id="pickup-heading">ขึ้นรถกลับคอนโด</h2><button className="locate-pickup" onClick={pickup.locate}>จุดขึ้นรถใกล้ฉัน</button></div>
-      <p role="status">{pickup.locationMessage}</p>
+      {pickup.selected ? <div className="pickup-eta" role="status">
+        {pickup.route ? <>
+          <span className="eta-number">ประมาณ {Math.max(1, Math.ceil(pickup.route.durationSeconds / 60))} นาที</span>
+          <span>{(pickup.route.distanceMeters / 1000).toFixed(1)} กม. ตามเส้นทางถนน</span>
+          <small>คำนวณตามสภาพจราจร ไม่รวมเวลาจอดรับคน เส้นทางจริงของรถอาจต่างออกไป</small>
+        </> : <span>{!position ? "ยังไม่ได้เชื่อมต่อระบบพิกัด" : pickup.routeStatus || "กำลังอัพเดตเส้นทาง"}</span>}
+      </div> : <p>เลือกจุดขึ้นรถเพื่อดูเวลาถึงโดยประมาณ</p>}
+      {pickup.locationMessage && <p role="status">{pickup.locationMessage}</p>}
       <div className="pickup-options">{PICKUP_STOPS.map(stop => <button key={stop.id} aria-pressed={pickup.selected?.id === stop.id} onClick={() => pickup.select(stop.id)}>{stop.label}</button>)}</div>
     </section>
 
     <section className="tracker-layout" aria-label="ตำแหน่งรถที่เลือก">
-      <VehicleMap key={selectedId} position={position} color={vehicle.color} number={number} stale={!isLive} selection={pickup.selection} route={pickup.route}/>
+      <VehicleMap key={selectedId} position={position} color={vehicle.color} number={number} stale={!isLive} selection={position ? pickup.selection : null} route={pickup.route}/>
       <div className="vehicle-panel">
         <div className="status-strip">
           <div className="vehicle-status"><h2>{vehicle.label}</h2><div className={"gps-status " + (!position ? "waiting" : isLive && !poorGps ? "fresh" : "stale")} role="status"><span className="small-dot"/><strong>{status}</strong><span>{position && quality.ageSeconds === null ? "ตรวจสอบเวลาในอุปกรณ์" : ageLabel(quality.ageSeconds)}</span></div></div>
@@ -168,7 +175,7 @@ export function ResidentTracker({ demo, usb = false }: { demo: boolean; usb?: bo
         </div>
 
         {connection === "unconfigured" ? <div className="setup-note"><p>ยังไม่ได้เชื่อมต่อระบบพิกัด</p><a className="demo-link" href="/?demo=1">ดูตัวอย่าง</a></div> :
-          !position ? <p className="waiting-note">{usb && selectedId !== "SHUTTLE-01" ? "โหมด USB เชื่อมเฉพาะรถคันที่ 1" : demo && selectedId === "SHUTTLE-03" ? "ตัวอย่างรถที่ยังไม่ได้ส่งพิกัด" : "ยังไม่ได้รับพิกัดจากรถคันนี้"}</p> :
+          !position ? <p className="waiting-note">{usb && selectedId !== "SHUTTLE-01" ? "โหมด USB เชื่อมเฉพาะรถคันที่ 1" : demo && selectedId === "SHUTTLE-03" ? "ตัวอย่างรถที่ยังไม่ได้ส่งพิกัด" : "ยังไม่ได้เชื่อมต่อระบบพิกัด"}</p> :
           <>
             {!isLive && <p className="warning-copy">ยังไม่ได้รับพิกัดใหม่ ตำแหน่งรถอาจเปลี่ยนแล้ว</p>}
             <div className="position-summary"><p></p><details className="position-disclosure"><summary>รายละเอียดพิกัด</summary><dl className="position-details"><div><dt>GPS บันทึกเมื่อ</dt><dd>{timeLabel(position.captured_at)} น.</dd></div><div><dt>ระบบรับข้อมูลเมื่อ</dt><dd>{timeLabel(position.received_at)} น.</dd></div><div><dt>ละติจูด / ลองจิจูด</dt><dd className="coordinates">{position.latitude.toFixed(6)}, {position.longitude.toFixed(6)}</dd></div></dl></details></div>
