@@ -134,7 +134,7 @@ export function ResidentTracker({ demo, usb = false }: { demo: boolean; usb?: bo
   const pickup = usePickup({ position, vehicleId: selectedId, now: now || Date.now(), demo: demo || usb });
   const poorGps = position !== null && (position.accuracy_meters === null || position.accuracy_meters > 30);
   const isLive = quality.kind === "live";
-  const status = !position ? "ยังไม่มีตำแหน่ง" : !isLive ? "ขาดการอัปเดต" : poorGps ? "สัญญาณ GPS ไม่ชัด" : "อัปเดตตำแหน่งสด";
+  const status = !position ? "ยังไม่มีตำแหน่ง" : !isLive ? "อัพเดตล่าสุดเมื่อ" : poorGps ? "สัญญาณ GPS ไม่เสถียร" : "อัพเดตตำแหน่งปัจจุบัน";
   const number = selectedId.slice(-1);
   const reconnect = useCallback(() => setRefresh((value) => value + 1), []);
 
@@ -154,18 +154,17 @@ export function ResidentTracker({ demo, usb = false }: { demo: boolean; usb?: bo
     </nav>
 
     <section className="pickup-panel" aria-labelledby="pickup-heading">
-      <div className="pickup-heading"><h2 id="pickup-heading">ขึ้นรถกลับคอนโด</h2><button className="locate-pickup" onClick={pickup.locate}>หาจุดขึ้นรถใกล้ฉัน</button></div>
+      <div className="pickup-heading"><h2 id="pickup-heading">ขึ้นรถกลับคอนโด</h2><button className="locate-pickup" onClick={pickup.locate}>จุดขึ้นรถใกล้ฉัน</button></div>
       <p role="status">{pickup.locationMessage}</p>
       <div className="pickup-options">{PICKUP_STOPS.map(stop => <button key={stop.id} aria-pressed={pickup.selected?.id === stop.id} onClick={() => pickup.select(stop.id)}>{stop.label}</button>)}</div>
-      {pickup.selected && <div className="pickup-eta" role="status"><strong>{pickup.manual ? "จุดที่เลือก" : "จุดขึ้นรถใกล้คุณ"} · {pickup.selected.label}</strong>{pickup.route ? <><span className="eta-number">ประมาณ {Math.max(1, Math.ceil(pickup.route.durationSeconds / 60))} นาที</span><span>{(pickup.route.distanceMeters / 1000).toFixed(1)} กม. ตามเส้นทางถนน</span><small>คำนวณตามการจราจร ไม่รวมเวลาจอดรับคน เส้นทางจริงของรถอาจต่างออกไป</small></> : <span>{pickup.routeStatus || "กำลังอัปเดตเส้นทาง"}</span>}</div>}
     </section>
 
     <section className="tracker-layout" aria-label="ตำแหน่งรถที่เลือก">
-      <VehicleMap key={selectedId} position={position} color={vehicle.color} number={number} stale={!isLive} pickupId={pickup.selected?.id ?? null} route={pickup.route}/>
+      <VehicleMap key={selectedId} position={position} color={vehicle.color} number={number} stale={!isLive} selection={pickup.selection} route={pickup.route}/>
       <div className="vehicle-panel">
         <div className="status-strip">
           <div className="vehicle-status"><h2>{vehicle.label}</h2><div className={"gps-status " + (!position ? "waiting" : isLive && !poorGps ? "fresh" : "stale")} role="status"><span className="small-dot"/><strong>{status}</strong><span>{position && quality.ageSeconds === null ? "ตรวจสอบเวลาในอุปกรณ์" : ageLabel(quality.ageSeconds)}</span></div></div>
-          {position && <dl className="metrics"><div><dt>ความเร็ว</dt><dd>{position.speed_meters_per_second === null ? "ไม่ทราบ" : Math.round(position.speed_meters_per_second * 3.6)}{position.speed_meters_per_second !== null && <small> กม./ชม.</small>}</dd></div><div><dt>ความแม่นยำโดยประมาณ</dt><dd>{position.accuracy_meters === null ? "ไม่ทราบ" : Math.round(position.accuracy_meters)}{position.accuracy_meters !== null && <small> เมตร</small>}</dd></div></dl>}
+          {position && <dl className="metrics"><div><dt>ความเร็วรถ</dt><dd>{position.speed_meters_per_second === null ? "ไม่ทราบ" : Math.round(position.speed_meters_per_second * 3.6)}{position.speed_meters_per_second !== null && <small> กม./ชม.</small>}</dd></div><div><dt>ความคลาดเคลื่อน</dt><dd>{position.accuracy_meters === null ? "ไม่ทราบ" : Math.round(position.accuracy_meters)}{position.accuracy_meters !== null && <small> เมตร</small>}</dd></div></dl>}
         </div>
 
         {connection === "unconfigured" ? <div className="setup-note"><p>ยังไม่ได้เชื่อมต่อระบบพิกัด</p><a className="demo-link" href="/?demo=1">ดูตัวอย่าง</a></div> :
@@ -178,7 +177,5 @@ export function ResidentTracker({ demo, usb = false }: { demo: boolean; usb?: bo
         {(connection === "offline" || connection === "reconnecting" || error) && <button className="reconnect-button" onClick={reconnect}>เชื่อมต่อใหม่</button>}
       </div>
     </section>
-
-    <section className="stop-list" aria-labelledby="stops-heading"><h2 id="stops-heading">จุดขึ้นรถกลับคอนโด</h2><ul>{PICKUP_STOPS.map(stop => <li key={stop.id}>{stop.label}</li>)}</ul></section>
   </main>;
 }

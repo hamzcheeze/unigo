@@ -2,20 +2,17 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Map, Marker, Circle, Polyline } from "leaflet";
-import { PICKUP_STOPS, type PickupStopId, type RoadRoute } from "@/lib/pickups";
+import { PICKUP_STOPS, type PickupSelection, type RoadRoute } from "@/lib/pickups";
 import type { Position } from "@/lib/domain";
 import { TargetIcon } from "./icons";
 
-type Props = { position: Position | null; color: string; number: string; stale: boolean; pickupId: PickupStopId | null; route: RoadRoute | null };
+type Props = { position: Position | null; color: string; number: string; stale: boolean; selection: PickupSelection | null; route: RoadRoute | null };
 type Leaflet = typeof import("leaflet");
 
-export function VehicleMap({ position, color, number, stale, pickupId, route }: Props) {
+export function VehicleMap({ position, color, number, stale, selection, route }: Props) {
   const element = useRef<HTMLDivElement>(null);
-  const latestPosition = useRef(position);
-  latestPosition.current = position;
   const map = useRef<Map | null>(null);
   const marker = useRef<Marker | null>(null);
-  const fittedRoute = useRef<string | null>(null);
   const routeLine = useRef<Polyline | null>(null);
   const circle = useRef<Circle | null>(null);
   const library = useRef<Leaflet | null>(null);
@@ -70,16 +67,14 @@ export function VehicleMap({ position, color, number, stale, pickupId, route }: 
       else circle.current.setLatLng(point).setRadius(position.accuracy_meters).setStyle({ color: actualColor });
     } else { circle.current?.remove(); circle.current = null; }
     if (lastVehicle.current !== position.vehicle_id) {
-      const stop = PICKUP_STOPS.find(value => value.id === pickupId);
-      if (stop) instance.fitBounds([point, [stop.latitude, stop.longitude]], { padding: [65, 65], maxZoom: 16 });
-      else {
+      if (!selection) {
         const bounds: [number, number][] = PICKUP_STOPS.map(value => [value.latitude, value.longitude]);
         instance.fitBounds([...bounds, point], { padding: [65, 65], maxZoom: 16 });
         followRef.current = false; setFollow(false);
       }
       lastVehicle.current = position.vehicle_id;
     } else if (followRef.current) instance.panTo(point, { animate: false });
-  }, [position, ready, color, number, stale, pickupId]);
+  }, [position, ready, color, number, stale, selection]);
 
   useEffect(() => {
     const instance = map.current;
@@ -88,23 +83,15 @@ export function VehicleMap({ position, color, number, stale, pickupId, route }: 
     routeLine.current?.remove(); routeLine.current = null;
     if (route) {
       routeLine.current = L.polyline(route.points, { color: "#c90060", weight: 5, opacity: .85 }).addTo(instance);
-      const key = route.vehicleId + ":" + route.stopId;
-      if (fittedRoute.current !== key) {
-        instance.fitBounds(routeLine.current.getBounds(), { padding: [65, 65], maxZoom: 16 });
-        fittedRoute.current = key;
-        followRef.current = false; setFollow(false);
-      }
     }
   }, [route, ready]);
 
   useEffect(() => {
-    const stop = PICKUP_STOPS.find(value => value.id === pickupId);
+    const stop = PICKUP_STOPS.find(value => value.id === selection?.stopId);
     if (!ready || !map.current || !stop) return;
     followRef.current = false; setFollow(false);
-    const bounds: [number, number][] = [[stop.latitude, stop.longitude]];
-    if (latestPosition.current) bounds.push([latestPosition.current.latitude, latestPosition.current.longitude]);
-    map.current.fitBounds(bounds, { padding: [65, 65], maxZoom: 16 });
-  }, [pickupId, ready]);
+    map.current.stop().setView([stop.latitude, stop.longitude], 17);
+  }, [selection, ready]);
 
   return <div className="map-shell">
     <div ref={element} className="map-canvas" aria-label="แผนที่ตำแหน่งรถคันที่เลือก" />
