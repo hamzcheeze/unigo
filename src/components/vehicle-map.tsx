@@ -1,17 +1,22 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { Map, Marker, Circle } from "leaflet";
+import type { Map, Marker, Circle, Polyline } from "leaflet";
+import { PICKUP_STOPS, type PickupStopId, type RoadRoute } from "@/lib/pickups";
 import type { Position } from "@/lib/domain";
-import { TargetIcon, PinIcon } from "./icons";
+import { TargetIcon } from "./icons";
 
-type Props = { position: Position | null; color: string; number: string; stale: boolean };
+type Props = { position: Position | null; color: string; number: string; stale: boolean; pickupId: PickupStopId | null; route: RoadRoute | null };
 type Leaflet = typeof import("leaflet");
 
-export function VehicleMap({ position, color, number, stale }: Props) {
+export function VehicleMap({ position, color, number, stale, pickupId, route }: Props) {
   const element = useRef<HTMLDivElement>(null);
+  const latestPosition = useRef(position);
+  latestPosition.current = position;
   const map = useRef<Map | null>(null);
   const marker = useRef<Marker | null>(null);
+  const fittedRoute = useRef<string | null>(null);
+  const routeLine = useRef<Polyline | null>(null);
   const circle = useRef<Circle | null>(null);
   const library = useRef<Leaflet | null>(null);
   const [ready, setReady] = useState(false);
@@ -25,8 +30,13 @@ export function VehicleMap({ position, color, number, stale }: Props) {
     let cancelled = false;
     void import("leaflet").then((L) => {
       if (cancelled || !element.current) return;
-      const instance = L.map(element.current, { zoomControl: false }).setView([13.75, 100.5], 14);
+      const instance = L.map(element.current, { zoomControl: false }).setView([13.722, 100.475], 14);
+      instance.fitBounds(PICKUP_STOPS.map(stop => [stop.latitude, stop.longitude]), { padding: [65, 65] });
       map.current = instance; library.current = L;
+      for (const stop of PICKUP_STOPS) {
+        L.circleMarker([stop.latitude, stop.longitude], { radius: 8, color: "#fff", weight: 3, fillColor: "#48102b", fillOpacity: 1 }).addTo(instance).bindTooltip(stop.label, { permanent: true, direction: "top", className: "pickup-label" });
+        L.circle([stop.latitude, stop.longitude], { radius: 50, color: "#c90060", weight: 1, fillOpacity: .04 }).addTo(instance);
+      }
       L.control.zoom({ position: "bottomright" }).addTo(instance);
       const tiles = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>', maxZoom: 19,
@@ -60,14 +70,45 @@ export function VehicleMap({ position, color, number, stale }: Props) {
       else circle.current.setLatLng(point).setRadius(position.accuracy_meters).setStyle({ color: actualColor });
     } else { circle.current?.remove(); circle.current = null; }
     if (lastVehicle.current !== position.vehicle_id) {
-      instance.setView(point, 16, { animate: false }); lastVehicle.current = position.vehicle_id; followRef.current = true; setFollow(true);
+      const stop = PICKUP_STOPS.find(value => value.id === pickupId);
+      if (stop) instance.fitBounds([point, [stop.latitude, stop.longitude]], { padding: [65, 65], maxZoom: 16 });
+      else {
+        const bounds: [number, number][] = PICKUP_STOPS.map(value => [value.latitude, value.longitude]);
+        instance.fitBounds([...bounds, point], { padding: [65, 65], maxZoom: 16 });
+        followRef.current = false; setFollow(false);
+      }
+      lastVehicle.current = position.vehicle_id;
     } else if (followRef.current) instance.panTo(point, { animate: false });
-  }, [position, ready, color, number, stale]);
+  }, [position, ready, color, number, stale, pickupId]);
+
+  useEffect(() => {
+    const instance = map.current;
+    const L = library.current;
+    if (!ready || !instance || !L) return;
+    routeLine.current?.remove(); routeLine.current = null;
+    if (route) {
+      routeLine.current = L.polyline(route.points, { color: "#c90060", weight: 5, opacity: .85 }).addTo(instance);
+      const key = route.vehicleId + ":" + route.stopId;
+      if (fittedRoute.current !== key) {
+        instance.fitBounds(routeLine.current.getBounds(), { padding: [65, 65], maxZoom: 16 });
+        fittedRoute.current = key;
+        followRef.current = false; setFollow(false);
+      }
+    }
+  }, [route, ready]);
+
+  useEffect(() => {
+    const stop = PICKUP_STOPS.find(value => value.id === pickupId);
+    if (!ready || !map.current || !stop) return;
+    followRef.current = false; setFollow(false);
+    const bounds: [number, number][] = [[stop.latitude, stop.longitude]];
+    if (latestPosition.current) bounds.push([latestPosition.current.latitude, latestPosition.current.longitude]);
+    map.current.fitBounds(bounds, { padding: [65, 65], maxZoom: 16 });
+  }, [pickupId, ready]);
 
   return <div className="map-shell">
     <div ref={element} className="map-canvas" aria-label="แผนที่ตำแหน่งรถคันที่เลือก" />
     {(!ready || error) && <div className="map-cover"><span className="map-cover-icon">◎</span><strong>{error ? "เปิดแผนที่ไม่ได้" : "กำลังเปิดแผนที่"}</strong><p>{error ? "ดูสถานะพิกัดและเวลาอัปเดตด้านล่างได้" : "รอสักครู่"}</p></div>}
-    {ready && !position && <div className="map-empty"><PinIcon size={30} /><strong>รอตำแหน่งรถคันนี้</strong><span>แผนที่จะแสดงเมื่อรถส่งพิกัด</span></div>}
     {tileError && <div className="map-warning" role="status">โหลดพื้นแผนที่ไม่ครบ กรุณาตรวจสอบอินเทอร์เน็ต</div>}
     <div className="map-caption"><span className={position && !stale ? "small-dot" : "small-dot muted"} />{position ? stale ? "ตำแหน่งล่าสุดที่ได้รับ" : "ตำแหน่งจาก GPS ของรถ" : "ยังไม่มีตำแหน่งรถ"}</div>
     <button className={"follow-button " + (follow ? "following" : "")} disabled={!position} onClick={() => { if (!position) return; followRef.current = true; setFollow(true); map.current?.setView([position.latitude, position.longitude], 16); }}><TargetIcon />{follow ? "ติดตามตำแหน่ง" : "กลับไปที่รถ"}</button>

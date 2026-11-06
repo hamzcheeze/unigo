@@ -127,3 +127,17 @@ button:disabled { cursor: default; opacity: .55; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }
 }
+
+.pickup-panel { border-top: 1px solid var(--line); padding: 18px 0; }
+.pickup-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.pickup-heading h2 { margin: 0; font-size: 17px; }
+.locate-pickup, .pickup-options button { min-height: 44px; border: 1px solid var(--line); border-radius: 8px; background: white; color: var(--action); padding: 9px 14px; font-size: 13px; }
+.pickup-panel p { font-size: 13px; margin: 10px 0 4px; }
+.pickup-panel .pickup-privacy { color: var(--muted); font-size: 11px; }
+.pickup-options { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+.pickup-options button[aria-pressed="true"] { background: #fff0f6; border-color: var(--action); }
+.pickup-eta { display: flex; flex-direction: column; gap: 5px; margin-top: 16px; font-size: 13px; }
+.pickup-eta .eta-number { color: var(--action); font-size: 27px; font-weight: 600; }
+.pickup-eta small { color: var(--muted); font-size: 11px; }
+.pickup-label { color: var(--ink); border-color: var(--line); box-shadow: none; font-family: inherit; }
+@media (max-width: 700px) { .pickup-heading { align-items: flex-start; flex-direction: column; } .pickup-options button { flex: 1; } }

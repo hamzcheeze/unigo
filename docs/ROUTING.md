@@ -1,0 +1,26 @@
+# Configure pickup routing
+
+The resident page uses `/api/route` to request a driving route from the selected shuttle's latest position to one of two fixed pickup stops. Residents' coordinates stay in their browser. The server sends the shuttle coordinate and stop coordinate to TomTom.
+
+Set `TOMTOM_API_KEY` on the server in `.env.local` for local review and in Vercel for production. Do not prefix it with `NEXT_PUBLIC_`, commit it, or send it in chat. Enable the Routing API for the key in the provider account. No key produces `503 routing_not_configured`; the UI must show unavailable estimates rather than a fabricated route.
+
+The server also needs the existing `NEXT_PUBLIC_SUPABASE_URL` and publishable or anon key. It reads the public vehicle snapshot, rejects old fixes, rejects accuracy over 50 metres, and rejects coordinates outside the service area. The map uses the actual saved pickup coordinates, not station-centre search results.
+
+Requests set `traffic=true`, `departAt=now`, and `travelMode=car`. Returned duration considers the traffic information available to TomTom. It is an estimate for the calculated driving route, not a prediction of the shuttle's actual service itinerary. Detours, a different station order, waiting for passengers, and a driver heading elsewhere can change arrival time. Confirm the real route and stop order before presenting this as a scheduled arrival prediction.
+
+Only the three known vehicles and two known stops are accepted. A process-local cache and in-flight coalescing limit provider calls for each pair to one per 30 seconds, including failures. This is not a shared global limit across Vercel instances or deployments. Configure a provider-side quota or spending limit before enabling production. Browser polling runs only while visible, a stop is selected manually or by a fresh resident fix, and shuttle GPS is fresh and accurate. A cached route keeps its original `fetchedAt` and source revision; it must not be presented as newly calculated.
+
+The endpoint uses a bounded 2 MB upstream body and deadlines for storage and routing requests. Upstream error bodies, URLs containing keys, and provider credentials are not returned to residents.
+
+Routing data attribution should visibly identify TomTom next to the route/estimate. Review the applicable account licence, attribution requirements, and current quota/pricing before enabling the key. TomTom describes its navigation, routing and traffic data as map agnostic; the applicable account agreement remains authoritative. Google Routes was not used because its current terms prohibit showing route content with a non-Google map.
+
+## Verification
+
+`npm test` covers malformed requests, missing configuration, stale/inaccurate/out-of-area shuttle fixes, response geometry conversion, coalescing, cached-route freshness checks, provider failure, and error redaction. The automated tests mock provider and storage HTTP boundaries. A separate live check with the local server key returned HTTP 200 and 69 road geometry points for BTS Talat Phlu to MRT Tha Phra. An isolated call through the actual route handler also returned HTTP 200 using a synthetic station-origin snapshot and the real TomTom service, without writing to the database. This verifies provider integration, not an actual shuttle arrival prediction. The local endpoint with the current real vehicle snapshot returns 409 vehicle_unavailable because that snapshot is stale. Browser inspection confirmed both stop names, manual BTS selection and the waiting-for-fresh-position state. Real resident GPS at the stops and a moving shuttle have not been tested together.
+
+## References
+
+- [TomTom Calculate Route](https://docs.tomtom.com/routing-api/documentation/tomtom-maps/v1/calculate-route)
+- [TomTom map agnostic navigation](https://www.tomtom.com/newsroom/behind-the-map/map-agnostic-navigation/)
+- [TomTom legal overview](https://docs.tomtom.com/legal/terms-and-conditions)
+- [Google Maps service terms, Routes API](https://cloud.google.com/maps-platform/terms/maps-service-terms)

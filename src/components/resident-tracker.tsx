@@ -6,6 +6,8 @@ import { createClient } from "@supabase/supabase-js";
 import { VEHICLES, positionSchema, mergePosition, freshness, type Position, type VehicleId } from "@/lib/domain";
 import { VehicleMap } from "./vehicle-map";
 import { BusIcon } from "./icons";
+import { PICKUP_STOPS } from "@/lib/pickups";
+import { usePickup } from "./use-pickup";
 
 type Connection = "connecting" | "connected" | "reconnecting" | "offline" | "unconfigured" | "demo" | "usb";
 const connectionLabels: Record<Connection, string> = {
@@ -129,6 +131,7 @@ export function ResidentTracker({ demo, usb = false }: { demo: boolean; usb?: bo
   const { position, connection, error } = usePosition(selectedId, demo, usb, refresh);
   useEffect(() => { setNow(Date.now()); const timer = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(timer); }, []);
   const quality = freshness(position, now || Date.now());
+  const pickup = usePickup({ position, vehicleId: selectedId, now: now || Date.now(), demo: demo || usb });
   const poorGps = position !== null && (position.accuracy_meters === null || position.accuracy_meters > 30);
   const isLive = quality.kind === "live";
   const status = !position ? "ยังไม่มีตำแหน่ง" : !isLive ? "ขาดการอัปเดต" : poorGps ? "สัญญาณ GPS ไม่ชัด" : "อัปเดตตำแหน่งสด";
@@ -150,8 +153,16 @@ export function ResidentTracker({ demo, usb = false }: { demo: boolean; usb?: bo
       </button>)}
     </nav>
 
+    <section className="pickup-panel" aria-labelledby="pickup-heading">
+      <div className="pickup-heading"><h2 id="pickup-heading">ขึ้นรถกลับคอนโด</h2><button className="locate-pickup" onClick={pickup.locate}>หาจุดขึ้นรถใกล้ฉัน</button></div>
+      <p role="status">{pickup.locationMessage}</p>
+      <p className="pickup-privacy">ใช้ตำแหน่งบนเครื่องของคุณเท่านั้น ไม่ส่งพิกัดของคุณไปยังเซิร์ฟเวอร์</p>
+      <div className="pickup-options">{PICKUP_STOPS.map(stop => <button key={stop.id} aria-pressed={pickup.selected?.id === stop.id} onClick={() => pickup.select(stop.id)}>{stop.label}</button>)}</div>
+      {pickup.selected && <div className="pickup-eta" role="status"><strong>{pickup.manual ? "จุดที่เลือก" : "จุดขึ้นรถใกล้คุณ"} · {pickup.selected.label}</strong>{pickup.route ? <><span className="eta-number">ประมาณ {Math.max(1, Math.ceil(pickup.route.durationSeconds / 60))} นาที</span><span>{(pickup.route.distanceMeters / 1000).toFixed(1)} กม. ตามเส้นทางถนน</span><small>คำนวณตามการจราจร ไม่รวมเวลาจอดรับคน เส้นทางจริงของรถอาจต่างออกไป</small><small>เส้นทางและเวลาโดย <a href="https://www.tomtom.com/" target="_blank" rel="noreferrer">TomTom</a></small></> : <span>{pickup.routeStatus || "กำลังอัปเดตเส้นทาง"}</span>}</div>}
+    </section>
+
     <section className="tracker-layout" aria-label="ตำแหน่งรถที่เลือก">
-      <VehicleMap key={selectedId} position={position} color={vehicle.color} number={number} stale={!isLive}/>
+      <VehicleMap key={selectedId} position={position} color={vehicle.color} number={number} stale={!isLive} pickupId={pickup.selected?.id ?? null} route={pickup.route}/>
       <div className="vehicle-panel">
         <div className="status-strip">
           <div className="vehicle-status"><h2>{vehicle.label}</h2><div className={"gps-status " + (!position ? "waiting" : isLive && !poorGps ? "fresh" : "stale")} role="status"><span className="small-dot"/><strong>{status}</strong><span>{position && quality.ageSeconds === null ? "ตรวจสอบเวลาในอุปกรณ์" : ageLabel(quality.ageSeconds)}</span></div></div>
@@ -169,6 +180,6 @@ export function ResidentTracker({ demo, usb = false }: { demo: boolean; usb?: bo
       </div>
     </section>
 
-    <section className="stop-list" aria-labelledby="stops-heading"><h2 id="stops-heading">จุดรับ-ส่ง</h2><ul><li>MRT ท่าพระ (ขาไป) →</li><li>BTS ตลาดพลู →</li><li>MRT ท่าพระ (ขากลับ)</li></ul></section>
+    <section className="stop-list" aria-labelledby="stops-heading"><h2 id="stops-heading">จุดขึ้นรถกลับคอนโด</h2><ul>{PICKUP_STOPS.map(stop => <li key={stop.id}>{stop.label}</li>)}</ul></section>
   </main>;
 }
