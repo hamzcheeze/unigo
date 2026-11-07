@@ -128,7 +128,7 @@ export function VehicleMap({ position, color, number, stale, selection, route }:
 
   return <div className="map-shell">
     <div ref={element} className="map-canvas" aria-label="แผนที่ตำแหน่งรถคันที่เลือก" />
-    {(!ready || error) && <div className="map-cover"><span className="map-cover-icon">◎</span><strong>{error ? "เปิดแผนที่ไม่ได้" : "กำลังเปิดแผนที่"}</strong><p>{error ? "ดูสถานะพิกัดและเวลาอัพเดตด้านล่างได้" : "รอสักครู่"}</p></div>}
+    {(!ready || error) && <div className="map-cover"><span className="map-cover-icon">◎</span><strong>{error ? "เปิดแผนที่ไม่ได้" : "กำลังเปิดแผนที่"}</strong><p>{error ? "กรุณาโหลดหน้าใหม่" : "รอสักครู่"}</p></div>}
     {tileError && <div className="map-warning" role="status">โหลดพื้นแผนที่ไม่ครบ กรุณาตรวจสอบอินเทอร์เน็ต</div>}
     <div className="map-caption"><span className={position && !stale ? "small-dot" : "small-dot muted"} />{position ? stale ? "ตำแหน่งล่าสุดที่ได้รับ" : "ตำแหน่งจาก GPS ของรถ" : "ยังไม่มีตำแหน่งรถ"}</div>
     <button className={"follow-button " + (follow ? "following" : "")} disabled={!position} onClick={() => { if (!position) return; routeFitPending.current = false; followRef.current = true; setFollow(true); map.current?.setView([position.latitude, position.longitude], 16); }}><TargetIcon />{follow ? "ติดตามตำแหน่ง" : "กลับไปที่รถ"}</button>

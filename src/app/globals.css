@@ -32,7 +32,7 @@ button:disabled { cursor: default; opacity: .55; }
 @media (prefers-reduced-motion: reduce) { .bus-pin .bus-online-dot { animation: none; } }
 .vehicle-tab.selected { border-color: var(--action); background: var(--action); color: white; }
 .tracker-layout { overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: white; }
-.map-shell { position: relative; height: clamp(380px, 56vh, 580px); isolation: isolate; overflow: hidden; background: #eee8eb; border-bottom: 1px solid var(--line); }
+.map-shell { position: relative; height: clamp(380px, 56vh, 580px); isolation: isolate; overflow: hidden; background: #eee8eb; }
 .map-canvas { position: absolute; inset: 0; z-index: 0; background: #eee8eb; }
 .map-shell .leaflet-container { font: 400 12px/1.6 var(--font-prompt), sans-serif; }
 .map-shell .leaflet-control-attribution { font-size: 10px; max-width: 85%; }
@@ -48,35 +48,9 @@ button:disabled { cursor: default; opacity: .55; }
 .map-warning { position: absolute; z-index: 500; left: 16px; right: 16px; top: 62px; background: #fff7e8; color: #785220; padding: 9px 11px; font-size: 12px; border-radius: 6px; }
 .bus-pin { display: flex; align-items: center; justify-content: center; position: relative; width: 36px; height: 36px; border-radius: 12px; background: var(--bus-color); color: #fff; border: 3px solid #fff; }
 .bus-online-dot { position: absolute; bottom: -5px; right: -5px; width: 12px; height: 12px; border: 2px solid white; border-radius: 50%; background: #087f68; animation: vehicle-online-pulse 1.8s ease-in-out infinite; }
-.vehicle-panel { padding: 22px 24px; }
-.status-strip { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
-.vehicle-status h2 { margin: 0 0 8px; font-size: 20px; font-weight: 700; }
-.gps-status { display: flex; align-items: center; flex-wrap: wrap; column-gap: 8px; row-gap: 5px; font-size: 13px; }
-.gps-status strong { font-weight: 600; }
-.gps-status > span:last-child { color: var(--muted); font-weight: 500; }
-.gps-status.stale .small-dot { background: #a86a18; }
-.gps-status.waiting .small-dot { background: #8d7882; }
-.metrics { display: flex; gap: 32px; margin: 0; }
-.metrics > div { min-width: 110px; }
-.metrics dt { font-size: 13px; font-weight: 500; color: var(--ink); margin-bottom: 6px; }
-.metrics dd { margin: 0; font-size: 24px; font-weight: 500; font-variant-numeric: tabular-nums; }
-.metrics small { font-size: 12px; font-weight: 400; color: var(--muted); }
-.position-summary { margin-top: 12px; padding-top: 0; border-top: 1px solid var(--line); display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
-.position-summary > p { color: var(--muted); font-size: 12px; line-height: 1.7; margin: 0; padding: 10px 0; }
-.position-disclosure { flex: 0 1 380px; text-align: right; min-width: 0; }
-.position-disclosure summary { cursor: pointer; font-size: 12px; min-height: 44px; padding: 10px 0; color: var(--muted); }
-.position-details { display: grid; gap: 10px; text-align: left; margin: 5px 0 0; }
-.position-details > div { display: flex; justify-content: space-between; gap: 16px; font-size: 12px; line-height: 1.7; }
-.position-details dt { color: var(--muted); }
-.position-details dd { margin: 0; text-align: right; }
-.coordinates { font-variant-numeric: tabular-nums; }
-.setup-note { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; font-size: 13px; color: var(--muted); margin-top: 14px; }
-.setup-note p { margin: 0; }
-.demo-link { display: inline-flex; align-items: center; min-height: 44px; color: var(--action); }
-.waiting-note { margin: 16px 0 0; color: var(--muted); font-size: 13px; line-height: 1.7; }
-.warning-copy, .error-copy { padding: 10px 12px; border-radius: 6px; font-size: 13px; line-height: 1.7; color: #785220; background: #fff7e8; margin: 16px 0 0; }
-.error-copy { color: #a02b3d; background: #fff0f2; overflow-wrap: anywhere; }
-.reconnect-button { min-height: 44px; background: var(--action); color: white; padding: 10px 16px; border: 0; border-radius: 7px; font-size: 13px; margin-top: 12px; }
+.connection-notice { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px; padding: 10px 16px; border-top: 1px solid var(--line); color: #a02b3d; background: #fff0f2; font-size: 13px; }
+.connection-notice span { overflow-wrap: anywhere; }
+.connection-notice button, .connection-notice a { min-height: 44px; display: inline-flex; align-items: center; border: 0; background: transparent; color: var(--action); font-size: 13px; font-weight: 600; }
 .stop-list { display: flex; align-items: baseline; flex-wrap: wrap; gap: 12px 24px; padding: 24px 0 0; font-size: 12px; color: var(--muted); }
 .stop-list h2 { font-size: 12px; font-weight: 500; margin: 0; }
 .stop-list ul { display: flex; flex-wrap: wrap; gap: 10px 24px; padding: 0; margin: 0; list-style: none; }
@@ -87,8 +61,8 @@ button:disabled { cursor: default; opacity: .55; }
   .site { padding: 0 16px 24px; }
   .header { gap: 16px; flex-wrap: wrap; padding: 32px 0 24px; }
   .header-title { flex-basis: 100%; gap: 8px; }
-  .header-name { font-size: clamp(23px, 7.5vw, 32px); }
-  .header-descriptor { font-size: 16px; }
+  .header-name { font-size: clamp(36px, 7.5vw, 36px); }
+  .header-descriptor { font-size: 14px; }
   .vehicle-tabs { gap: 7px; margin: 4px 0 12px; }
   .vehicle-tab { flex: 1; min-width: 0; gap: 6px; padding: 10px 7px; font-size: 13px; }
   .vehicle-tab svg { width: 18px; height: 18px; flex-shrink: 0; }
@@ -97,19 +71,6 @@ button:disabled { cursor: default; opacity: .55; }
   .follow-button { left: 12px; bottom: 28px; }
   .map-warning { top: 57px; left: 12px; right: 12px; font-size: 12px; }
   .map-empty { padding: 22px 16px; }
-  .vehicle-panel { padding: 16px 16px 8px; }
-  .status-strip { align-items: stretch; flex-direction: column; gap: 18px; }
-  .vehicle-status h2 { font-size: 19px; }
-  .metrics { gap: 24px; }
-  .metrics > div { flex: 1; min-width: 0; }
-  .metrics > div:last-child { text-align: right; }
-  .metrics dd { font-size: 24px; }
-  .metrics dt { font-size: 13px; }
-  .position-summary { display: block; margin-top: 12px; }
-  .position-summary > p { font-size: 12px; padding: 0; }
-  .position-disclosure { text-align: left; }
-  .position-disclosure summary { padding: 10px 0; }
-  .position-details > div { font-size: 12px; }
   .stop-list { gap: 10px; padding-top: 20px; }
   .stop-list h2 { width: 100%; }
   .stop-list ul { gap: 7px 18px; }

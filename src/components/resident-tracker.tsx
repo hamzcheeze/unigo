@@ -124,17 +124,6 @@ function usePosition(vehicleId: VehicleId, demo: boolean, usb: boolean, refresh:
   return { position: positions[vehicleId] ?? null, connection, error };
 }
 
-function ageLabel(seconds: number | null) {
-  if (seconds === null) return "ยังไม่มีข้อมูล";
-  if (seconds < 1) return "เมื่อสักครู่";
-  if (seconds < 60) return Math.floor(seconds) + " วินาทีที่แล้ว";
-  if (seconds < 3600) return Math.floor(seconds / 60) + " นาทีที่แล้ว";
-  return Math.floor(seconds / 3600) + " ชั่วโมงที่แล้ว";
-}
-function timeLabel(value: string) {
-  return new Date(value).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "Asia/Bangkok" });
-}
-
 export function ResidentTracker({ demo, usb = false }: { demo: boolean; usb?: boolean }) {
   const [selectedId, setSelectedId] = useState<VehicleId>("SHUTTLE-01");
   const [refresh, setRefresh] = useState(0);
@@ -144,15 +133,13 @@ export function ResidentTracker({ demo, usb = false }: { demo: boolean; usb?: bo
   useEffect(() => { setNow(Date.now()); const timer = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(timer); }, []);
   const quality = freshness(position, now || Date.now());
   const pickup = usePickup({ position, vehicleId: selectedId, now: now || Date.now(), demo: demo || usb });
-  const poorGps = position !== null && (position.accuracy_meters === null || position.accuracy_meters > 30);
   const isLive = quality.kind === "live";
-  const status = !position ? "ยังไม่มีตำแหน่ง" : !isLive ? "อัพเดตล่าสุดเมื่อ" : poorGps ? "สัญญาณ GPS ไม่เสถียร" : "อัพเดตตำแหน่งปัจจุบัน";
   const number = selectedId.slice(-1);
   const reconnect = useCallback(() => setRefresh((value) => value + 1), []);
 
   return <main className={"site" + (pickup.reloading ? " site-reloading" : "")}>
     <header className="header">
-      <h1 className="header-title"><span className="header-name">UNiO Charan 3</span>{" "}<span className="header-descriptor">รถชมพู</span></h1>
+      <h1 className="header-title"><span className="header-name">รถชมพู</span>{" "}<span className="header-descriptor">ยูนิโอ จรัญฯ 3</span></h1>
     </header>
 
     {usb && <div className="demo-banner"><span><strong>ทดสอบผ่าน USB</strong> เชื่อมต่อเฉพาะรถคันที่ 1</span><a href="/">ดูระบบจริง</a></div>}
@@ -189,21 +176,11 @@ export function ResidentTracker({ demo, usb = false }: { demo: boolean; usb?: bo
 
     <section className="tracker-layout" aria-label="ตำแหน่งรถที่เลือก">
       <VehicleMap key={selectedId} position={position} color={vehicle.color} number={number} stale={!isLive} selection={position ? pickup.selection : null} route={pickup.route}/>
-      <div className="vehicle-panel">
-        <div className="status-strip">
-          <div className="vehicle-status"><h2>{vehicle.label}</h2><div className={"gps-status " + (!position ? "waiting" : isLive && !poorGps ? "fresh" : "stale")} role="status"><span className="small-dot"/><strong>{status}</strong><span>{position && quality.ageSeconds === null ? "ตรวจสอบเวลาในอุปกรณ์" : ageLabel(quality.ageSeconds)}</span></div></div>
-          {position && <dl className="metrics"><div><dt>ความเร็วรถ</dt><dd>{position.speed_meters_per_second === null ? "ไม่ทราบ" : Math.round(position.speed_meters_per_second * 3.6)}{position.speed_meters_per_second !== null && <small> กม./ชม.</small>}</dd></div><div><dt>ความคลาดเคลื่อน</dt><dd>{position.accuracy_meters === null ? "ไม่ทราบ" : Math.round(position.accuracy_meters)}{position.accuracy_meters !== null && <small> เมตร</small>}</dd></div></dl>}
-        </div>
-
-        {connection === "unconfigured" ? <div className="setup-note"><p>ยังไม่ได้เชื่อมต่อระบบพิกัด</p><a className="demo-link" href="/?demo=1">ดูตัวอย่าง</a></div> :
-          !position ? <p className="waiting-note">{usb && selectedId !== "SHUTTLE-01" ? "โหมด USB เชื่อมเฉพาะรถคันที่ 1" : demo && selectedId === "SHUTTLE-03" ? "ตัวอย่างรถที่ยังไม่ได้ส่งพิกัด" : "ยังไม่ได้เชื่อมต่อระบบพิกัด"}</p> :
-          <>
-            {!isLive && <p className="warning-copy">ยังไม่ได้รับพิกัดใหม่ ตำแหน่งรถอาจเปลี่ยนแล้ว</p>}
-            <div className="position-summary"><p></p><details className="position-disclosure"><summary>รายละเอียดพิกัด</summary><dl className="position-details"><div><dt>GPS บันทึกเมื่อ</dt><dd>{timeLabel(position.captured_at)} น.</dd></div><div><dt>ระบบรับข้อมูลเมื่อ</dt><dd>{timeLabel(position.received_at)} น.</dd></div><div><dt>ละติจูด / ลองจิจูด</dt><dd className="coordinates">{position.latitude.toFixed(6)}, {position.longitude.toFixed(6)}</dd></div></dl></details></div>
-          </>}
-        {error && <p className="error-copy" role="alert">{error}</p>}
-        {(connection === "offline" || connection === "reconnecting" || error) && <button className="reconnect-button" onClick={reconnect}>เชื่อมต่อใหม่</button>}
-      </div>
+      {(connection === "unconfigured" || connection === "offline" || connection === "reconnecting" || error) &&
+        <div className="connection-notice" role={error ? "alert" : "status"}>
+          <span>{error || (connection === "unconfigured" ? "ยังไม่ได้เชื่อมต่อระบบพิกัด" : connection === "offline" ? "การเชื่อมต่อขาดหาย" : "กำลังเชื่อมต่อใหม่")}</span>
+          {connection === "unconfigured" ? <a href="/?demo=1">ดูตัวอย่าง</a> : <button onClick={reconnect}>เชื่อมต่อใหม่</button>}
+        </div>}
     </section>
   </main>;
 }
