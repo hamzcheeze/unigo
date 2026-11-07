@@ -184,3 +184,114 @@ test("refresh keeps skeleton state through all retries and only exposes the fina
   await cache.load(bts);
   assert.equal(calls, 5);
 });
+
+test("retry can initialize an unseen pair and stops as soon as a retry succeeds", async () => {
+  let calls = 0;
+  let waits = 0;
+  const cache = new PickupRouteCache(async pair => {
+    if (++calls === 1) throw new RouteUnavailableError();
+    return route(pair);
+  }, async () => { waits++; });
+  await cache.retry(bts);
+  assert.deepEqual(cache.get(bts), { kind: "ready", route: route(bts) });
+  assert.equal(calls, 2);
+  assert.equal(waits, 1);
+});
+
+test("synchronous and non-Error loader failures become visible errors without retries", async () => {
+  const sync = new PickupRouteCache(() => { throw new Error("sync failure"); });
+  await sync.load(bts);
+  assert.deepEqual(sync.get(bts), { kind: "error", previousRoute: null, message: "sync failure" });
+  const nonError = new PickupRouteCache(async () => { throw "offline"; });
+  await nonError.load(bts);
+  assert.deepEqual(nonError.get(bts), { kind: "error", previousRoute: null, message: "โหลดเส้นทางไม่ได้ กรุณาลองใหม่" });
+});
+
+test("wrong vehicle response is rejected even when its stop matches", async () => {
+  const cache = new PickupRouteCache(async () => route(otherVehicle));
+  await cache.load(bts);
+  assert.deepEqual(cache.get(bts), { kind: "error", previousRoute: null, message: "ข้อมูลเส้นทางไม่ตรงกับรถหรือจุดขึ้นรถที่เลือก" });
+  assert.equal(cache.get(otherVehicle), undefined);
+});
+
+test("failure of one pair does not prevent another pair from becoming ready", async () => {
+  const cache = new PickupRouteCache(async pair => {
+    if (pair.stopId === "talat-phlu") throw new Error("failed BTS");
+    return route(pair);
+  });
+  await Promise.all([cache.load(bts), cache.load(mrt)]);
+  assert.deepEqual(cache.get(bts), { kind: "error", previousRoute: null, message: "failed BTS" });
+  assert.deepEqual(cache.get(mrt), { kind: "ready", route: route(mrt) });
+});
+
+test("cancelling before a pending load begins does not call the loader and explicit retry recovers", async () => {
+  let calls = 0;
+  const cache = new PickupRouteCache(async pair => { calls++; return route(pair); });
+  const pending = cache.load(bts);
+  cache.cancelRetries();
+  await pending;
+  assert.equal(calls, 0);
+  assert.deepEqual(cache.get(bts), { kind: "error", previousRoute: null, message: "หยุดการอัพเดตเส้นทางแล้ว" });
+  await cache.retry(bts);
+  assert.equal(calls, 1);
+  assert.deepEqual(cache.get(bts), { kind: "ready", route: route(bts) });
+});
+
+test("a failed second refresh retains the last successful route for subsequent retries", async () => {
+  let calls = 0;
+  const previous = { ...route(bts), sourceRevision: 2 };
+  const cache = new PickupRouteCache(async () => {
+    if (++calls <= 2) return calls === 1 ? route(bts) : previous;
+    throw new Error("refresh failure");
+  });
+  await cache.load(bts);
+  await cache.retry(bts);
+  await cache.retry(bts);
+  await cache.retry(bts);
+  assert.deepEqual(cache.get(bts), { kind: "error", previousRoute: previous, message: "refresh failure" });
+  assert.equal(calls, 4);
+});
+
+test("default retry waits the full thirty seconds before attempting again", async t => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  let calls = 0;
+  const cache = new PickupRouteCache(async pair => {
+    if (++calls === 1) throw new RouteUnavailableError();
+    return route(pair);
+  });
+  const pending = cache.load(bts);
+  await new Promise<void>(resolve => setImmediate(resolve));
+  t.mock.timers.tick(29999);
+  await Promise.resolve();
+  assert.equal(calls, 1);
+  assert.deepEqual(cache.get(bts), { kind: "loading", previousRoute: null });
+  t.mock.timers.tick(1);
+  await pending;
+  assert.equal(calls, 2);
+  assert.deepEqual(cache.get(bts), { kind: "ready", route: route(bts) });
+});
+
+test("cancelling the default retry timer stops another loader attempt", async t => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  let calls = 0;
+  const cache = new PickupRouteCache(async () => { calls++; throw new RouteUnavailableError(); });
+  const pending = cache.load(bts);
+  await new Promise<void>(resolve => setImmediate(resolve));
+  cache.cancelRetries();
+  await pending;
+  t.mock.timers.tick(60000);
+  assert.equal(calls, 1);
+  assert.deepEqual(cache.get(bts), { kind: "error", previousRoute: null, message: "หยุดการอัพเดตเส้นทางแล้ว" });
+});
+
+test("cancellation during loader failure also rejects an already-aborted retry wait", async () => {
+  let calls = 0;
+  const cache = new PickupRouteCache(async () => {
+    calls++;
+    cache.cancelRetries();
+    throw new RouteUnavailableError();
+  });
+  await cache.load(bts);
+  assert.equal(calls, 1);
+  assert.deepEqual(cache.get(bts), { kind: "error", previousRoute: null, message: "หยุดการอัพเดตเส้นทางแล้ว" });
+});

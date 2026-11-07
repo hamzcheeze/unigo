@@ -8,3 +8,8 @@ test("nearest pickup uses device coordinates even outside the 50 metre radius", 
   assert.equal(nearestPickup({ latitude: 13.712, longitude: 100.48 }).id, "talat-phlu");
   assert.equal(nearestPickup({ latitude: 13.733, longitude: 100.47 }).id, "tha-phra");
 });
+
+test("nearest pickup still chooses a boarding stop far outside the service area", () => {
+  assert.equal(nearestPickup({ latitude: 14, longitude: 100.47 }).id, "tha-phra");
+  assert.equal(nearestPickup({ latitude: 13, longitude: 100.47 }).id, "talat-phlu");
+});

@@ -69,3 +69,44 @@ test("loop intersections cannot imply two different remaining distances", () => 
   const loop: RoadRoute = { ...route, points: [[0, 0], [0, 0.01], [0.01, 0.01], [0.01, 0], [0, 0]] };
   assert.deepEqual(estimateRemainingRoute({ route: loop, position, now }), { kind: "unavailable", reason: "ambiguous-route" });
 });
+
+test("GPS freshness and accuracy boundaries permit ETA only through the inclusive limit", () => {
+  for (const patch of [
+    { accuracy_meters: 50 },
+    { captured_at: new Date(now - 10000).toISOString() },
+    { received_at: new Date(now - 10000).toISOString() },
+    { captured_at: new Date(now + 5000).toISOString() },
+  ]) {
+    assert.deepEqual(estimateRemainingRoute({ route, position: { ...position, ...patch }, now }), { kind: "estimated", distanceMeters: 2000, durationSeconds: 600 });
+  }
+  for (const patch of [
+    { accuracy_meters: 50.001 },
+    { captured_at: new Date(now - 10001).toISOString() },
+    { received_at: new Date(now - 10001).toISOString() },
+    { captured_at: new Date(now + 5001).toISOString() },
+  ]) {
+    assert.deepEqual(estimateRemainingRoute({ route, position: { ...position, ...patch }, now }), { kind: "unavailable", reason: "gps" });
+  }
+});
+
+test("route fetched exactly five seconds ahead is accepted", () => {
+  assert.deepEqual(estimateRemainingRoute({ route: { ...route, fetchedAt: new Date(now + 5000).toISOString() }, position, now }), { kind: "estimated", distanceMeters: 2000, durationSeconds: 600 });
+});
+
+test("projection clamps progress before the start and after the destination", () => {
+  assert.deepEqual(estimateRemainingRoute({ route, position: { ...position, longitude: -0.0001 }, now }), { kind: "estimated", distanceMeters: 2000, durationSeconds: 600 });
+  assert.deepEqual(estimateRemainingRoute({ route, position: { ...position, longitude: 0.0101 }, now }), { kind: "estimated", distanceMeters: 0, durationSeconds: 0 });
+});
+
+test("cross-track distance uses GPS accuracy allowance and rejects just outside it", () => {
+  const metersPerDegree = 6371000 * Math.PI / 180;
+  assert.deepEqual(estimateRemainingRoute({ route, position: { ...position, longitude: 0.005, latitude: 54.99 / metersPerDegree }, now }), { kind: "estimated", distanceMeters: 1000, durationSeconds: 300 });
+  assert.deepEqual(estimateRemainingRoute({ route, position: { ...position, longitude: 0.005, latitude: 55.01 / metersPerDegree }, now }), { kind: "unavailable", reason: "off-route" });
+});
+
+test("empty or singleton geometry cannot fabricate ETA, and zero provider totals remain zero", () => {
+  for (const points of [[], [[0, 0]] satisfies RoadRoute["points"]]) {
+    assert.deepEqual(estimateRemainingRoute({ route: { ...route, points }, position, now }), { kind: "unavailable", reason: "off-route" });
+  }
+  assert.deepEqual(estimateRemainingRoute({ route: { ...route, distanceMeters: 0, durationSeconds: 0 }, position: { ...position, longitude: 0.005 }, now }), { kind: "estimated", distanceMeters: 0, durationSeconds: 0 });
+});

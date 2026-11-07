@@ -95,3 +95,74 @@ test("cancelling a search stops retries and ignores a late device fix", async co
   await flush();
   assert.equal(callbacks.length, 1);
 });
+
+test("a pre-cancelled lookup never asks the browser for coordinates", async () => {
+  const controller = new AbortController();
+  controller.abort();
+  const geolocation: GeolocationApi = { getCurrentPosition() { assert.fail("cancelled lookup requested location"); } };
+  assert.deepEqual(await requestResidentLocation({ geolocation, signal: controller.signal }), { kind: "cancelled" });
+});
+
+test("synchronous browser exceptions exhaust three attempts and return unavailable", async () => {
+  let calls = 0;
+  const geolocation: GeolocationApi = { getCurrentPosition() { calls++; throw new Error("browser unavailable"); } };
+  assert.deepEqual(await requestResidentLocation({ geolocation, signal: new AbortController().signal }), { kind: "unavailable" });
+  assert.equal(calls, 3);
+});
+
+test("browser unavailable and timeout errors each stop after three attempts", async () => {
+  for (const code of [2, 3]) {
+    let calls = 0;
+    const geolocation: GeolocationApi = { getCurrentPosition(_success, error) { calls++; error?.({ ...unavailable, code }); } };
+    assert.deepEqual(await requestResidentLocation({ geolocation, signal: new AbortController().signal }), { kind: "unavailable" });
+    assert.equal(calls, 3);
+  }
+});
+
+test("invalid device coordinates and measurements never become a located result", async () => {
+  for (const coords of [
+    { latitude: NaN }, { longitude: Infinity }, { accuracy: NaN },
+    { accuracy: -1 }, { latitude: 90.001 }, { latitude: -90.001 },
+    { longitude: 180.001 }, { longitude: -180.001 },
+  ]) {
+    let calls = 0;
+    const geolocation: GeolocationApi = { getCurrentPosition(success) {
+      calls++;
+      const fix = position();
+      success({ ...fix, coords: { ...fix.coords, ...coords } });
+    } };
+    assert.deepEqual(await requestResidentLocation({ geolocation, signal: new AbortController().signal }), { kind: "unavailable" });
+    assert.equal(calls, 3);
+  }
+});
+
+test("device timestamps and coordinate bounds are inclusive and deterministic", async context => {
+  const now = 1700000000000;
+  context.mock.timers.enable({ apis: ["Date", "setTimeout"], now });
+  for (const timestamp of [now - 60000, now + 5000]) {
+    const fix = { ...position(timestamp), coords: { ...position(timestamp).coords, latitude: -90, longitude: 180, accuracy: 0 } };
+    const geolocation: GeolocationApi = { getCurrentPosition(success) { success(fix); } };
+    assert.deepEqual(await requestResidentLocation({ geolocation, signal: new AbortController().signal }), {
+      kind: "located", latitude: -90, longitude: 180, accuracy: 0, timestamp,
+    });
+  }
+  for (const timestamp of [NaN, Infinity, now - 60001, now + 5001]) {
+    const geolocation: GeolocationApi = { getCurrentPosition(success) { success(position(timestamp)); } };
+    assert.deepEqual(await requestResidentLocation({ geolocation, signal: new AbortController().signal }), { kind: "unavailable" });
+  }
+});
+
+test("a successful result ignores duplicate error and success callbacks", async () => {
+  let calls = 0;
+  const fix = position();
+  const geolocation: GeolocationApi = { getCurrentPosition(success, error) {
+    calls++;
+    success(fix);
+    error?.({ ...unavailable, code: 1 });
+    success({ ...fix, coords: { ...fix.coords, latitude: 0 } });
+  } };
+  assert.deepEqual(await requestResidentLocation({ geolocation, signal: new AbortController().signal }), {
+    kind: "located", latitude: 13.72, longitude: 100.47, accuracy: 5, timestamp: fix.timestamp,
+  });
+  assert.equal(calls, 1);
+});

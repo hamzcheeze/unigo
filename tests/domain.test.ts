@@ -52,3 +52,72 @@ test("bounded JSON accepts normal body and rejects over-limit chunked input", as
   assert.deepEqual(await boundedJson(new Request("https://example.com", { method: "POST", body: '{"ok":true}' })), { ok: true });
   await assert.rejects(boundedJson(new Request("https://example.com", { method: "POST", body: "x".repeat(8193) })), /body_too_large/);
 });
+
+test("incoming schema accepts inclusive coordinate, measurement, and integer boundaries", () => {
+  for (const change of [
+    { latitude: -90, longitude: -180, accuracyMeters: 0, speedMetersPerSecond: 0, bearingDegrees: 0 },
+    { latitude: 90, longitude: 180, accuracyMeters: 100000, speedMetersPerSecond: 200, bearingDegrees: 359.999 },
+    { sequence: Number.MAX_SAFE_INTEGER, capturedAtMs: Number.MAX_SAFE_INTEGER, elapsedRealtimeNanos: 0 },
+    { accuracyMeters: null, speedMetersPerSecond: null, bearingDegrees: null },
+  ]) {
+    const expected = { ...incoming, ...change };
+    assert.deepEqual(incomingPositionSchema.parse(expected), expected);
+  }
+});
+
+for (const [field, values] of Object.entries({
+  latitude: [-90.001, 90.001, NaN, Infinity, "13.7", null],
+  longitude: [-180.001, 180.001, NaN, -Infinity],
+  sequence: [-1, 0, 1.5, Number.MAX_SAFE_INTEGER + 1, NaN],
+  capturedAtMs: [-1, 0, 0.5, Number.MAX_SAFE_INTEGER + 1],
+  elapsedRealtimeNanos: [-1, NaN, Infinity],
+  accuracyMeters: [-0.001, 100000.001, NaN, Infinity],
+  speedMetersPerSecond: [-0.001, 200.001, NaN, Infinity],
+  bearingDegrees: [-0.001, 360, NaN, Infinity],
+  mock: [null, "false", 0],
+  provider: [null, "network", "GPS"],
+  sessionId: [null, "", "a0000000-0000-0000-0000-000000000001"],
+})) {
+  test(`incoming schema rejects invalid ${field} values`, () => {
+    for (const value of values) assert.equal(incomingPositionSchema.safeParse({ ...incoming, [field]: value }).success, false, `${field}: ${String(value)}`);
+    const missing: Record<string, unknown> = { ...incoming };
+    delete missing[field];
+    assert.equal(incomingPositionSchema.safeParse(missing).success, false);
+  });
+}
+
+test("stored schema validates integer revisions, timestamps, and nullable measurements", () => {
+  assert.deepEqual(positionSchema.parse({ ...row, revision: Number.MAX_SAFE_INTEGER, accuracy_meters: null }), { ...row, revision: Number.MAX_SAFE_INTEGER, accuracy_meters: null });
+  for (const change of [
+    { revision: 0 }, { revision: 1.5 }, { revision: Number.MAX_SAFE_INTEGER + 1 },
+    { sequence: 0 }, { captured_at: "2026-01-01" }, { received_at: "not-a-date" },
+    { captured_at: "2026-02-30T00:00:00Z" }, { accuracy_meters: -1 },
+    { speed_meters_per_second: 201 }, { bearing_degrees: 360 },
+  ]) assert.equal(positionSchema.safeParse({ ...row, ...change }).success, false);
+  assert.equal(positionSchema.parse({ ...row, captured_at: "2026-01-01T07:00:00+07:00" }).captured_at, "2026-01-01T07:00:00+07:00");
+});
+
+test("freshness has inclusive ten-second age and five-second future bounds", () => {
+  const now = Date.parse("2026-01-01T00:00:10Z");
+  assert.deepEqual(freshness(row, now), { kind: "live", ageSeconds: 10 });
+  assert.deepEqual(freshness(row, now + 1), { kind: "stale", ageSeconds: 10.001 });
+  const future = "2026-01-01T00:00:15Z";
+  assert.deepEqual(freshness({ ...row, captured_at: future, received_at: future }, now), { kind: "live", ageSeconds: 0 });
+  for (const field of ["captured_at", "received_at"]) {
+    assert.deepEqual(freshness({ ...row, [field]: "2026-01-01T00:00:15.001Z" }, now), { kind: "stale", ageSeconds: null });
+  }
+  assert.deepEqual(freshness({ ...row, captured_at: "2026-01-01T00:00:09Z", received_at: "2025-12-31T23:59:59Z" }, now), { kind: "stale", ageSeconds: 11 });
+});
+
+test("merge initializes empty state and accepts another vehicle independently of revision", () => {
+  assert.deepEqual(mergePosition(null, row), row);
+  const other = positionSchema.parse({ ...row, vehicle_id: "SHUTTLE-02", latitude: 1 });
+  assert.deepEqual(mergePosition({ ...row, revision: 999 }, other), other);
+});
+
+test("ingestion time boundaries accept exactly fifteen seconds old or five seconds ahead", () => {
+  const fix = incomingPositionSchema.parse(incoming);
+  assert.equal(captureRejection(fix, fix.capturedAtMs + 15000), null);
+  assert.equal(captureRejection(fix, fix.capturedAtMs - 5000), null);
+  assert.equal(captureRejection({ ...fix, mock: true }, fix.capturedAtMs + 999999), "mock_position");
+});
