@@ -31,7 +31,7 @@ export function advanceArrival({ state, vehicleId, selection, position, route, n
   if (capturedAt <= state.lastCapturedAt) return state;
   if (capturedAt - state.lastCapturedAt > 10000) return { key, kind: "confirming", firstCapturedAt: capturedAt, lastCapturedAt: capturedAt };
   return capturedAt - state.firstCapturedAt >= 2000
-    ? { key, kind: "arrived", reloadAt: now + 60000 }
+    ? { key, kind: "arrived", reloadAt: now + 10000 }
     : { ...state, lastCapturedAt: capturedAt };
 }
 

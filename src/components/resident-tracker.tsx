@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import { VEHICLES, vehicleIdSchema, positionSchema, mergePosition, freshness, type Position, type VehicleId } from "@/lib/domain";
@@ -8,26 +8,13 @@ import { VehicleMap } from "./vehicle-map";
 import { BusIcon } from "./icons";
 import { PICKUP_STOPS } from "@/lib/pickups";
 import { usePickup } from "./use-pickup";
+import { DEMO_SCENARIOS, demoScenarioSchema, demoState, type DemoScenario } from "./demo-scenarios";
+import type { PickupSelection, PickupStopId } from "@/lib/pickups";
 
 type Connection = "connecting" | "connected" | "reconnecting" | "offline" | "unconfigured" | "demo" | "usb";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const configured = Boolean(supabaseUrl && supabaseKey);
-
-function demoPosition(vehicleId: VehicleId, tick: number): Position | null {
-  if (vehicleId === "SHUTTLE-03") return null;
-  const offset = vehicleId === "SHUTTLE-01" ? 0 : 1.7;
-  const phase = tick / 70 + offset;
-  return positionSchema.parse({
-    vehicle_id: vehicleId, revision: tick + 1, session_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", sequence: tick + 1,
-    latitude: 13.7337 + Math.sin(phase) * .0018,
-    longitude: 100.563 + Math.cos(phase) * .0026,
-    accuracy_meters: vehicleId === "SHUTTLE-01" ? 8 : 17,
-    speed_meters_per_second: 5.2,
-    bearing_degrees: (phase * 180 / Math.PI + 90) % 360,
-    captured_at: new Date().toISOString(), received_at: new Date().toISOString(),
-  });
-}
 
 const usbEventSchema = z.object({ position: positionSchema.nullable(), connected: z.boolean(), error: z.string().nullable() });
 
@@ -44,19 +31,7 @@ function usePosition(vehicleId: VehicleId, demo: boolean, usb: boolean, refresh:
     setPositions({}); setError(null);
     if (demo) {
       setConnection("demo");
-      let tick = 1;
-      const update = () => {
-        const next: Partial<Record<VehicleId, Position>> = {};
-        for (const vehicle of VEHICLES) {
-          const value = demoPosition(vehicle.id, tick);
-          if (value) next[vehicle.id] = value;
-        }
-        tick++;
-        setPositions(next);
-      };
-      update();
-      const timer = window.setInterval(update, 1000);
-      return () => { generation.current++; window.clearInterval(timer); };
+      return;
     }
     if (usb) {
       setConnection("connecting");
@@ -124,18 +99,29 @@ function usePosition(vehicleId: VehicleId, demo: boolean, usb: boolean, refresh:
   return { position: positions[vehicleId] ?? null, connection, error };
 }
 
-export function ResidentTracker({ demo, usb = false }: { demo: boolean; usb?: boolean }) {
+export function ResidentTracker({ demo, usb = false, initialDemoScenario = "initial" }: { demo: boolean; usb?: boolean; initialDemoScenario?: DemoScenario }) {
+  const [scenario, setScenario] = useState(initialDemoScenario);
+  const [demoStopId, setDemoStopId] = useState<PickupStopId>("talat-phlu");
+  const [demoRevision, setDemoRevision] = useState(1);
   const [selectedId, setSelectedId] = useState<VehicleId>("SHUTTLE-01");
   const [refresh, setRefresh] = useState(0);
   const [now, setNow] = useState(0);
   const vehicle = VEHICLES.find((item) => item.id === selectedId) ?? VEHICLES[0];
-  const { position, connection, error } = usePosition(selectedId, demo, usb, refresh);
+  const livePosition = usePosition(selectedId, demo, usb, refresh);
   useEffect(() => { setNow(Date.now()); const timer = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(timer); }, []);
+  const livePickup = usePickup({ position: livePosition.position, vehicleId: selectedId, now: now || Date.now(), demo: demo || usb });
+  const demoSelection = useMemo<PickupSelection | null>(() => scenario === "initial" ? null : { stopId: demoStopId, source: "manual", revision: demoRevision }, [scenario, demoStopId, demoRevision]);
+  const preview = demo ? demoState({ scenario, vehicleId: selectedId, stopId: demoStopId, selection: demoSelection, now: now || Date.now(),
+    select: id => { setDemoStopId(id); setDemoRevision(value => value + 1); if (scenario === "initial") setScenario("estimated"); },
+    locate: () => { setDemoStopId("tha-phra"); setDemoRevision(value => value + 1); setScenario("estimated"); },
+    refreshRoute: () => setScenario("estimated"),
+  }) : null;
+  const { position, connection, error } = preview ?? livePosition;
+  const pickup = preview?.pickup ?? livePickup;
   const quality = freshness(position, now || Date.now());
-  const pickup = usePickup({ position, vehicleId: selectedId, now: now || Date.now(), demo: demo || usb });
   const isLive = quality.kind === "live";
   const number = selectedId.slice(-1);
-  const reconnect = useCallback(() => setRefresh((value) => value + 1), []);
+  const reconnect = useCallback(() => { if (demo) setScenario("estimated"); else setRefresh((value) => value + 1); }, [demo]);
 
   return <main className={"site" + (pickup.reloading ? " site-reloading" : "")}>
     <header className="header">
@@ -143,15 +129,15 @@ export function ResidentTracker({ demo, usb = false }: { demo: boolean; usb?: bo
     </header>
 
     {usb && <div className="demo-banner"><span><strong>ทดสอบผ่าน USB</strong> เชื่อมต่อเฉพาะรถคันที่ 1</span><a href="/">ดูระบบจริง</a></div>}
-    {demo && <div className="demo-banner"><span><strong>ข้อมูลจำลอง</strong> ตำแหน่งและการเคลื่อนที่ใช้สำหรับสาธิต</span><a href="/">ดูรถจริง</a></div>}
+    {demo && <div className="demo-banner demo-controls"><label htmlFor="demo-scenario"><strong>ข้อมูลจำลอง</strong><select id="demo-scenario" value={scenario} onChange={event => { setScenario(demoScenarioSchema.parse(event.target.value)); setDemoRevision(value => value + 1); }}>{demoScenarioSchema.options.map(id => <option key={id} value={id}>{DEMO_SCENARIOS[id]}</option>)}</select></label><a href="/">ดูรถจริง</a><span>ข้อความและพิกัดจำลอง รถมาถึงจะค้างไว้ให้ดู</span></div>}
 
     <nav className="vehicle-tabs" aria-label="เลือกรถรับส่ง">
-      {VEHICLES.map((item) => <button key={item.id} className={"vehicle-tab " + (selectedId === item.id ? "selected" : "")} disabled={item.id !== "SHUTTLE-01"} aria-pressed={selectedId === item.id} onClick={() => setSelectedId(item.id)}>
+      {VEHICLES.map((item) => <button key={item.id} className={"vehicle-tab " + (selectedId === item.id ? "selected" : "")} disabled={!demo && item.id !== "SHUTTLE-01"} aria-pressed={selectedId === item.id} onClick={() => setSelectedId(item.id)}>
         <BusIcon size={20}/><span>{item.label}</span>
       </button>)}
     </nav>
 
-    <section className={"pickup-panel" + (pickup.selected ? " pickup-panel-selected" : "")} aria-labelledby="pickup-heading">
+    <section className={"pickup-panel" + (pickup.selected ? " pickup-panel-selected" : "") + (pickup.arrived ? " pickup-panel-arrived" : "")} aria-labelledby="pickup-heading">
       <div className="pickup-heading"><div className="pickup-intro"><h2 id="pickup-heading">ขึ้นรถกลับคอนโด</h2>{!pickup.selected && <p>เลือกจุดขึ้นรถเพื่อดูเวลาถึงโดยประมาณ</p>}</div><button className="locate-pickup" onClick={pickup.locate}>จุดขึ้นรถใกล้ฉัน</button></div>
       {pickup.selected ? <div className="pickup-eta" aria-busy={pickup.routeLoading}>
         <div className="eta-heading">
@@ -164,9 +150,9 @@ export function ResidentTracker({ demo, usb = false }: { demo: boolean; usb?: bo
             <svg width="16" height="16" viewBox="0 0 32 32" fill="currentColor" aria-hidden="true"><path d="M9 5.6A12 12 0 0 1 28 16h4l-7 12-7-12h6A8 8 0 0 0 11.3 9.1Z" /><path d="M9 5.6A12 12 0 0 1 28 16h4l-7 12-7-12h6A8 8 0 0 0 11.3 9.1Z" transform="rotate(180 16 16)" /></svg>
           </button>}
         </div>
-        {pickup.arrived ? <span className="arrival-placeholder" aria-hidden="true">ห่างออกไป 0.0 กม. จากจุดที่คุณเลือก</span> : pickup.routeLoading ? <span className="eta-skeleton eta-skeleton-distance" aria-hidden="true" /> :
+        {pickup.arrived ? <span className="arrival-stop">ถึงจุดขึ้นรถ {pickup.selected.label} แล้ว</span> : pickup.routeLoading ? <span className="eta-skeleton eta-skeleton-distance" aria-hidden="true" /> :
           !pickup.arrived && pickup.estimate?.kind === "estimated" && <span>{pickup.estimate.distanceMeters === null ? "กดรีเฟรชเพื่อประเมินระยะทางใหม่" : <>ห่างออกไป {(pickup.estimate.distanceMeters / 1000).toFixed(1)} กม. จากจุดที่คุณเลือก</>}</span>}
-        {pickup.arrived ? <small className="arrival-placeholder" aria-hidden="true">ระยะทางจาก GPS บนเส้นทางที่บันทึกไว้ เวลานับถอยหลังจากการอัพเดตล่าสุด</small> : pickup.routeLoading ? <span className="eta-skeleton eta-skeleton-description" aria-hidden="true" /> :
+        {pickup.arrived ? <small className="arrival-next">ดูตำแหน่งรถบนแผนที่และเตรียมขึ้นรถ</small> : pickup.routeLoading ? <span className="eta-skeleton eta-skeleton-description" aria-hidden="true" /> :
           pickup.estimate?.kind === "estimated" && <small>ระยะทางจาก GPS บนเส้นทางที่บันทึกไว้ เวลานับถอยหลังจากการอัพเดตล่าสุด</small>}
         {!pickup.arrived && !pickup.routeLoading && pickup.estimate?.kind === "estimated" && pickup.routeNotice && <small role="status">{pickup.routeNotice}</small>}
       </div> : null}
@@ -175,7 +161,7 @@ export function ResidentTracker({ demo, usb = false }: { demo: boolean; usb?: bo
     </section>
 
     <section className="tracker-layout" aria-label="ตำแหน่งรถที่เลือก">
-      <VehicleMap key={selectedId} position={position} color={vehicle.color} number={number} stale={!isLive} selection={position ? pickup.selection : null} route={pickup.route}/>
+      <VehicleMap key={selectedId} position={position} color={vehicle.color} number={number} stale={!isLive} selection={position ? pickup.selection : null} route={pickup.arrived ? null : pickup.route} arrived={pickup.arrived} preview={preview?.mapPreview ?? "normal"}/>
       {(connection === "unconfigured" || connection === "offline" || connection === "reconnecting" || error) &&
         <div className="connection-notice" role={error ? "alert" : "status"}>
           <span>{error || (connection === "unconfigured" ? "ยังไม่ได้เชื่อมต่อระบบพิกัด" : connection === "offline" ? "การเชื่อมต่อขาดหาย" : "กำลังเชื่อมต่อใหม่")}</span>

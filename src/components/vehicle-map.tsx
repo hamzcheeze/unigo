@@ -1,16 +1,17 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Map, Marker, Circle, Polyline } from "leaflet";
 import { PICKUP_STOPS, type PickupSelection, type RoadRoute } from "@/lib/pickups";
 import type { Position } from "@/lib/domain";
 import { TargetIcon } from "./icons";
+import type { MapPreview } from "./demo-scenarios";
 import { remainingRoute } from "@/lib/remaining-route";
 
-type Props = { position: Position | null; color: string; number: string; stale: boolean; selection: PickupSelection | null; route: RoadRoute | null };
+type Props = { position: Position | null; color: string; number: string; stale: boolean; selection: PickupSelection | null; route: RoadRoute | null; arrived: boolean; preview?: MapPreview };
 type Leaflet = typeof import("leaflet");
 
-export function VehicleMap({ position, color, number, stale, selection, route }: Props) {
+export function VehicleMap({ position, color, number, stale, selection, route, arrived, preview = "normal" }: Props) {
   const element = useRef<HTMLDivElement>(null);
   const latestPosition = useRef(position);
   latestPosition.current = position;
@@ -28,7 +29,16 @@ export function VehicleMap({ position, color, number, stale, selection, route }:
   const [follow, setFollow] = useState(true);
   const [tileError, setTileError] = useState(false);
   const followRef = useRef(true);
+  const focusedOnArrival = useRef(false);
   const lastVehicle = useRef<string | null>(null);
+
+  const focusVehicle = useCallback(() => {
+    if (!position || !map.current) return;
+    routeFitPending.current = false;
+    followRef.current = true;
+    setFollow(true);
+    map.current.setView([position.latitude, position.longitude], 16);
+  }, [position]);
 
   useEffect(() => {
     let cancelled = false;
@@ -126,11 +136,18 @@ export function VehicleMap({ position, color, number, stale, selection, route }:
     if (selectedRoute) routeFitPending.current = false;
   }, [selection, route, ready]);
 
+  useEffect(() => {
+    if (!arrived) { focusedOnArrival.current = false; return; }
+    if (focusedOnArrival.current || !ready || !position) return;
+    focusedOnArrival.current = true;
+    focusVehicle();
+  }, [arrived, ready, position, focusVehicle]);
+
   return <div className="map-shell">
     <div ref={element} className="map-canvas" aria-label="แผนที่ตำแหน่งรถคันที่เลือก" />
-    {(!ready || error) && <div className="map-cover"><span className="map-cover-icon">◎</span><strong>{error ? "เปิดแผนที่ไม่ได้" : "กำลังเปิดแผนที่"}</strong><p>{error ? "กรุณาโหลดหน้าใหม่" : "รอสักครู่"}</p></div>}
-    {tileError && <div className="map-warning" role="status">โหลดพื้นแผนที่ไม่ครบ กรุณาตรวจสอบอินเทอร์เน็ต</div>}
+    {(!ready || error || preview === "loading" || preview === "error") && <div className="map-cover"><span className="map-cover-icon">◎</span><strong>{error || preview === "error" ? "เปิดแผนที่ไม่ได้" : "กำลังเปิดแผนที่"}</strong><p>{error || preview === "error" ? "กรุณาโหลดหน้าใหม่" : "รอสักครู่"}</p></div>}
+    {(tileError || preview === "tiles") && <div className="map-warning" role="status">โหลดพื้นแผนที่ไม่ครบ กรุณาตรวจสอบอินเทอร์เน็ต</div>}
     <div className="map-caption"><span className={position && !stale ? "small-dot" : "small-dot muted"} />{position ? stale ? "ตำแหน่งล่าสุดที่ได้รับ" : "ตำแหน่งจาก GPS ของรถ" : "ยังไม่มีตำแหน่งรถ"}</div>
-    <button className={"follow-button " + (follow ? "following" : "")} disabled={!position} onClick={() => { if (!position) return; routeFitPending.current = false; followRef.current = true; setFollow(true); map.current?.setView([position.latitude, position.longitude], 16); }}><TargetIcon />{follow ? "ติดตามตำแหน่ง" : "กลับไปที่รถ"}</button>
+    <button className={"follow-button " + (follow ? "following" : "")} disabled={!position} onClick={focusVehicle}><TargetIcon />{follow ? "ติดตามตำแหน่ง" : "กลับไปที่รถ"}</button>
   </div>;
 }

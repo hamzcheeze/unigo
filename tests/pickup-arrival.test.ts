@@ -32,7 +32,7 @@ test("arrival needs independent GPS timestamps spanning two seconds and latches 
   const second = step(first, 1000);
   assert.equal(second.kind, "confirming");
   const arrived = step(second, 2000);
-  assert.deepEqual(arrived, { key: "SHUTTLE-01:talat-phlu:1", kind: "arrived", reloadAt: now + 62000 });
+  assert.deepEqual(arrived, { key: "SHUTTLE-01:talat-phlu:1", kind: "arrived", reloadAt: now + 12000 });
   assert.deepEqual(step(arrived, 20000, { latitude: stop.latitude + 0.01 }), arrived);
   assert.deepEqual(advanceArrival({ state: arrived, vehicleId: "SHUTTLE-01", selection, position: null, route: null, now: now + 30000, demo: false }), arrived);
 });
@@ -40,7 +40,7 @@ test("arrival needs independent GPS timestamps spanning two seconds and latches 
 test("moving and stationary buses qualify without a speed requirement", () => {
   for (const speed_meters_per_second of [null, 0, 15]) {
     const arrived = step(step(watching, 0, { speed_meters_per_second }), 2000, { speed_meters_per_second });
-    assert.deepEqual(arrived, { key: "SHUTTLE-01:talat-phlu:1", kind: "arrived", reloadAt: now + 62000 });
+    assert.deepEqual(arrived, { key: "SHUTTLE-01:talat-phlu:1", kind: "arrived", reloadAt: now + 12000 });
   }
 });
 
@@ -94,7 +94,7 @@ function clock() {
   let visible: (() => void) | null = null;
   const events: string[] = [];
   const cancel = scheduleArrivalReload({
-    reloadAt: 60000, now: () => time,
+    reloadAt: 10000, now: () => time,
     schedule: (callback, delay) => { timers.set(++timerId, { at: time + delay, callback }); return timerId; },
     cancel: id => { timers.delete(id); }, onFade: () => events.push(`fade:${time}`), onReload: () => events.push(`reload:${time}`),
     onVisible: callback => { visible = callback; return () => { visible = null; }; },
@@ -113,17 +113,17 @@ function clock() {
   };
 }
 
-test("reload scheduler fades just before the minute deadline and reloads exactly once", () => {
+test("reload scheduler fades just before the ten-second deadline and reloads exactly once", () => {
   const timer = clock();
-  timer.tick(59819);
+  timer.tick(9819);
   assert.deepEqual(timer.events, []);
-  timer.tick(59820);
-  assert.deepEqual(timer.events, ["fade:59820"]);
-  timer.tick(59999);
-  assert.deepEqual(timer.events, ["fade:59820"]);
-  timer.tick(60000);
-  timer.resume(61000);
-  assert.deepEqual(timer.events, ["fade:59820", "reload:60000"]);
+  timer.tick(9820);
+  assert.deepEqual(timer.events, ["fade:9820"]);
+  timer.tick(9999);
+  assert.deepEqual(timer.events, ["fade:9820"]);
+  timer.tick(10000);
+  timer.resume(11000);
+  assert.deepEqual(timer.events, ["fade:9820", "reload:10000"]);
 });
 
 test("overdue visibility reloads once and cleanup cancels timers and visibility handling", () => {
@@ -137,8 +137,8 @@ test("overdue visibility reloads once and cleanup cancels timers and visibility 
   cancelled.resume(80000);
   assert.deepEqual(cancelled.events, []);
   const normal = clock();
-  normal.tick(60000);
-  assert.deepEqual(normal.events, ["fade:59820", "reload:60000"]);
+  normal.tick(10000);
+  assert.deepEqual(normal.events, ["fade:9820", "reload:10000"]);
 });
 
 
@@ -149,18 +149,18 @@ test("an early timer wake-up is rearmed instead of leaving the page without a re
   const delays: number[] = [];
   const events: string[] = [];
   const dispose = scheduleArrivalReload({
-    reloadAt: 60000, now: () => time,
+    reloadAt: 10000, now: () => time,
     schedule: (callback, delay) => { callbacks.set(++id, callback); delays.push(delay); return id; },
     cancel: timer => { callbacks.delete(timer); },
     onFade: () => events.push("fade"), onReload: () => events.push("reload"), onVisible: () => () => {},
   });
   const firstReload = callbacks.get(2);
   if (!firstReload) throw new Error("Expected initial reload timer");
-  time = 30000;
+  time = 5000;
   firstReload();
-  assert.equal(delays.at(-1), 30000);
+  assert.equal(delays.at(-1), 5000);
   assert.deepEqual(events, []);
-  time = 60000;
+  time = 10000;
   const retry = callbacks.get(3);
   if (!retry) throw new Error("Expected rearmed reload timer");
   retry();
