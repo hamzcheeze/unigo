@@ -27,7 +27,7 @@ button:disabled { cursor: default; opacity: .55; }
 .demo-banner a { min-height: 44px; display: inline-flex; align-items: center; font-weight: 500; white-space: nowrap; }
 .vehicle-tabs { display: flex; gap: 8px; margin: 4px 0 16px; }
 .vehicle-tab { min-height: 48px; display: flex; align-items: center; justify-content: center; gap: 9px; background: transparent; color: var(--muted); border: 1px solid var(--line); border-radius: 8px; padding: 10px 22px; font-size: 14px; font-weight: 500; }
-.vehicle-tab:hover { background: #fce5ef; border-color: #db9ab7; }
+.vehicle-tab:hover:not(:disabled) { background: #fce5ef; border-color: #db9ab7; }
 @keyframes vehicle-online-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
 @media (prefers-reduced-motion: reduce) { .bus-pin .bus-online-dot { animation: none; } }
 .vehicle-tab.selected { border-color: var(--action); background: var(--action); color: white; }

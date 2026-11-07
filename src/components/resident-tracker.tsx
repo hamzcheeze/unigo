@@ -159,7 +159,7 @@ export function ResidentTracker({ demo, usb = false }: { demo: boolean; usb?: bo
     {demo && <div className="demo-banner"><span><strong>ข้อมูลจำลอง</strong> ตำแหน่งและการเคลื่อนที่ใช้สำหรับสาธิต</span><a href="/">ดูรถจริง</a></div>}
 
     <nav className="vehicle-tabs" aria-label="เลือกรถรับส่ง">
-      {VEHICLES.map((item) => <button key={item.id} className={"vehicle-tab " + (selectedId === item.id ? "selected" : "")} aria-pressed={selectedId === item.id} onClick={() => setSelectedId(item.id)}>
+      {VEHICLES.map((item) => <button key={item.id} className={"vehicle-tab " + (selectedId === item.id ? "selected" : "")} disabled={item.id !== "SHUTTLE-01"} aria-pressed={selectedId === item.id} onClick={() => setSelectedId(item.id)}>
         <BusIcon size={20}/><span>{item.label}</span>
       </button>)}
     </nav>
