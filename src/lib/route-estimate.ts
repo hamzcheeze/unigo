@@ -17,7 +17,7 @@ export function estimateRemainingRoute({ snapshot, position, now }: {
   const elapsedMinutes = Math.floor(Math.max(0, now - receivedAt) / 60000);
   return {
     kind: "estimated",
-    distanceMeters: route.distanceMeters,
+    distanceMeters: Math.max(0, route.distanceMeters - (snapshot.speedMetersPerSecond ?? 0) * 60 * elapsedMinutes),
     remainingMinutes: Math.max(0, Math.ceil(route.durationSeconds / 60) - elapsedMinutes),
   };
 }

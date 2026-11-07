@@ -58,11 +58,11 @@ export function usePickup({ position, vehicleId, now, demo }: { position: Positi
   }, [enabled, attempt]);
   const selected = PICKUP_STOPS.find(stop => stop.id === selection?.stopId) ?? null;
   const stopId = selected?.id ?? null;
-  const live = Boolean(position && freshness(position, now).kind === "live" && position.accuracy_meters !== null && position.accuracy_meters <= 50);
+  const live = Boolean(position && position.vehicle_id === vehicleId && freshness(position, now).kind === "live" && position.accuracy_meters !== null && position.accuracy_meters <= 50);
   useEffect(() => {
     if (!stopId || demo || !live || !visible) return;
     let active = true;
-    void routeCache.load({ vehicleId, stopId }).then(() => {
+    void routeCache.load({ vehicleId, stopId }, position?.speed_meters_per_second ?? null).then(() => {
       if (active) renderRoutes(value => value + 1);
     });
     return () => { active = false; };
@@ -84,7 +84,7 @@ export function usePickup({ position, vehicleId, now, demo }: { position: Positi
   }
   const refreshRoute = () => {
     if (!stopId || !live || demo) return;
-    const request = routeCache.retry({ vehicleId, stopId });
+    const request = routeCache.retry({ vehicleId, stopId }, position?.speed_meters_per_second ?? null);
     renderRoutes(value => value + 1);
     void request.then(() => renderRoutes(value => value + 1));
   };

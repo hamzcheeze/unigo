@@ -180,7 +180,7 @@ export function ResidentTracker({ demo, usb = false }: { demo: boolean; usb?: bo
         {pickup.routeLoading ? <span className="eta-skeleton eta-skeleton-distance" aria-hidden="true" /> :
           pickup.estimate?.kind === "estimated" && <span>ห่างออกไป {(pickup.estimate.distanceMeters / 1000).toFixed(1)} กม. จากจุดที่คุณเลือก</span>}
         {pickup.routeLoading ? <span className="eta-skeleton eta-skeleton-description" aria-hidden="true" /> :
-          pickup.estimate?.kind === "estimated" && <small>ประเมินจากสภาพการจราจรล่าสุด กดรีเฟรชเพื่อดึงข้อมูลใหม่</small>}
+          pickup.estimate?.kind === "estimated" && <small>ระยะทางประมาณจากความเร็วตอนอัพเดต กดรีเฟรชเพื่อดึงข้อมูลใหม่</small>}
         {!pickup.routeLoading && pickup.estimate?.kind === "estimated" && pickup.routeNotice && <small role="status">{pickup.routeNotice}</small>}
       </div> : null}
       {pickup.locationMessage && <p role="status">{pickup.locationMessage}</p>}

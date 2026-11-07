@@ -22,7 +22,7 @@ function freshPosition(time: number): Position {
 test("API ETA decrements once per complete minute from client receipt", () => {
   for (const [elapsed, remainingMinutes] of [[0, 13], [59999, 13], [60000, 12], [119999, 12], [120000, 11], [660000, 2], [720000, 1], [780000, 0], [86400000, 0]]) {
     const time = now + elapsed;
-    assert.deepEqual(estimateRemainingRoute({ snapshot: { route, receivedAt: now }, position: freshPosition(time), now: time }), {
+    assert.deepEqual(estimateRemainingRoute({ snapshot: { route, receivedAt: now, speedMetersPerSecond: null }, position: freshPosition(time), now: time }), {
       kind: "estimated", distanceMeters: 2000, remainingMinutes,
     });
   }
@@ -30,7 +30,7 @@ test("API ETA decrements once per complete minute from client receipt", () => {
 
 test("fractional API minutes round up and short or zero ETAs stay within the near-arrival threshold", () => {
   for (const [durationSeconds, remainingMinutes] of [[781, 14], [121, 3], [120, 2], [119, 2], [60, 1], [0, 0]]) {
-    assert.deepEqual(estimateRemainingRoute({ snapshot: { route: { ...route, durationSeconds }, receivedAt: now }, position, now }), {
+    assert.deepEqual(estimateRemainingRoute({ snapshot: { route: { ...route, durationSeconds }, receivedAt: now, speedMetersPerSecond: null }, position, now }), {
       kind: "estimated", distanceMeters: 2000, remainingMinutes,
     });
   }
@@ -39,24 +39,24 @@ test("fractional API minutes round up and short or zero ETAs stay within the nea
 test("stationary, backward and off-route movement do not change the countdown or saved distance", () => {
   const time = now + 60000;
   for (const longitude of [-0.01, 0, 0.005, 1]) {
-    assert.deepEqual(estimateRemainingRoute({ snapshot: { route, receivedAt: now }, position: { ...freshPosition(time), longitude }, now: time }), {
+    assert.deepEqual(estimateRemainingRoute({ snapshot: { route, receivedAt: now, speedMetersPerSecond: null }, position: { ...freshPosition(time), longitude }, now: time }), {
       kind: "estimated", distanceMeters: 2000, remainingMinutes: 12,
     });
   }
 });
 
 test("old route timestamps do not stop the countdown and clock rollback does not increase its initial value", () => {
-  assert.deepEqual(estimateRemainingRoute({ snapshot: { route: { ...route, fetchedAt: new Date(now - 86400000).toISOString() }, receivedAt: now }, position, now }), {
+  assert.deepEqual(estimateRemainingRoute({ snapshot: { route: { ...route, fetchedAt: new Date(now - 86400000).toISOString() }, receivedAt: now, speedMetersPerSecond: null }, position, now }), {
     kind: "estimated", distanceMeters: 2000, remainingMinutes: 13,
   });
-  assert.deepEqual(estimateRemainingRoute({ snapshot: { route, receivedAt: now + 60000 }, position, now }), {
+  assert.deepEqual(estimateRemainingRoute({ snapshot: { route, receivedAt: now + 60000, speedMetersPerSecond: null }, position, now }), {
     kind: "estimated", distanceMeters: 2000, remainingMinutes: 13,
   });
 });
 
 test("missing, stale, future, inaccurate and wrong-vehicle GPS cannot produce ETA", () => {
   for (const value of [null, { ...position, captured_at: new Date(now - 10001).toISOString() }, { ...position, received_at: new Date(now - 10001).toISOString() }, { ...position, captured_at: new Date(now + 5001).toISOString() }, { ...position, received_at: new Date(now + 5001).toISOString() }, { ...position, accuracy_meters: null }, { ...position, accuracy_meters: 50.001 }, { ...position, vehicle_id: "SHUTTLE-02" } satisfies Position]) {
-    assert.deepEqual(estimateRemainingRoute({ snapshot: { route, receivedAt: now }, position: value, now }), { kind: "unavailable", reason: "gps" });
+    assert.deepEqual(estimateRemainingRoute({ snapshot: { route, receivedAt: now, speedMetersPerSecond: null }, position: value, now }), { kind: "unavailable", reason: "gps" });
   }
 });
 
@@ -67,8 +67,24 @@ test("GPS freshness and accuracy boundaries permit ETA through the inclusive lim
     { received_at: new Date(now - 10000).toISOString() },
     { captured_at: new Date(now + 5000).toISOString() },
   ]) {
-    assert.deepEqual(estimateRemainingRoute({ snapshot: { route, receivedAt: now }, position: { ...position, ...patch }, now }), {
+    assert.deepEqual(estimateRemainingRoute({ snapshot: { route, receivedAt: now, speedMetersPerSecond: null }, position: { ...position, ...patch }, now }), {
       kind: "estimated", distanceMeters: 2000, remainingMinutes: 13,
     });
   }
+});
+
+test("distance uses the captured speed at the same complete-minute boundaries as ETA", () => {
+  const snapshot = { route, receivedAt: now, speedMetersPerSecond: 5 };
+  for (const [elapsed, distanceMeters, remainingMinutes] of [[0, 2000, 13], [59999, 2000, 13], [60000, 1700, 12], [119999, 1700, 12], [120000, 1400, 11], [420000, 0, 6], [86400000, 0, 0]]) {
+    const time = now + elapsed;
+    assert.deepEqual(estimateRemainingRoute({ snapshot, position: { ...freshPosition(time), speed_meters_per_second: 30 }, now: time }), { kind: "estimated", distanceMeters, remainingMinutes });
+  }
+});
+
+test("zero or unknown captured speed holds distance and clock rollback cannot add distance", () => {
+  for (const speedMetersPerSecond of [null, 0]) {
+    const time = now + 120000;
+    assert.deepEqual(estimateRemainingRoute({ snapshot: { route, receivedAt: now, speedMetersPerSecond }, position: freshPosition(time), now: time }), { kind: "estimated", distanceMeters: 2000, remainingMinutes: 11 });
+  }
+  assert.deepEqual(estimateRemainingRoute({ snapshot: { route, receivedAt: now + 60000, speedMetersPerSecond: 5 }, position, now }), { kind: "estimated", distanceMeters: 2000, remainingMinutes: 13 });
 });
