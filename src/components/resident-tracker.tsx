@@ -165,7 +165,7 @@ export function ResidentTracker({ demo, usb = false, initialDemoScenario = "init
       {(connection === "unconfigured" || connection === "offline" || connection === "reconnecting" || error) &&
         <div className="connection-notice" role={error ? "alert" : "status"}>
           <span>{error || (connection === "unconfigured" ? "ยังไม่ได้เชื่อมต่อระบบพิกัด" : connection === "offline" ? "การเชื่อมต่อขาดหาย" : "กำลังเชื่อมต่อใหม่")}</span>
-          {connection === "unconfigured" ? <a href="/?demo=1">ดูตัวอย่าง</a> : <button onClick={reconnect}>เชื่อมต่อใหม่</button>}
+          {connection === "unconfigured" ? process.env.NODE_ENV === "development" && <a href="/?demo=1">ดูตัวอย่าง</a> : <button onClick={reconnect}>เชื่อมต่อใหม่</button>}
         </div>}
     </section>
   </main>;
