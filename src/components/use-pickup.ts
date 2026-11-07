@@ -68,8 +68,9 @@ export function usePickup({ position, vehicleId, now, demo }: { position: Positi
     return () => { active = false; };
   }, [vehicleId, stopId, live, visible, demo, routeCache]);
   const entry = stopId ? routeCache.get({ vehicleId, stopId }) : undefined;
-  const route = entry?.kind === "ready" ? entry.route : entry?.previousRoute ?? null;
-  const estimate = route ? estimateRemainingRoute({ route, position, now }) : null;
+  const snapshot = entry?.kind === "ready" ? entry.snapshot : entry?.previousSnapshot ?? null;
+  const route = snapshot?.route ?? null;
+  const estimate = snapshot ? estimateRemainingRoute({ snapshot, position, now }) : null;
   let routeStatus = "เลือกจุดขึ้นรถเพื่อดูเส้นทาง";
   if (stopId) {
     if (demo) routeStatus = "โหมดตัวอย่างไม่คำนวณเวลาถึงจุดขึ้นรถ";
@@ -77,12 +78,7 @@ export function usePickup({ position, vehicleId, now, demo }: { position: Positi
     else if (entry?.kind === "loading") routeStatus = route ? "กำลังอัพเดตเส้นทาง..." : "กำลังหาเส้นทาง...";
     else if (entry?.kind === "error") routeStatus = entry.message;
     else if (estimate?.kind === "unavailable") {
-      switch (estimate.reason) {
-        case "gps": routeStatus = "รอตำแหน่งรถที่ชัดเจนและเป็นปัจจุบัน"; break;
-        case "off-route": routeStatus = "รถอยู่นอกเส้นทางที่บันทึกไว้ กดอัพเดตเส้นทางเพื่อประเมินใหม่"; break;
-        case "old-route": routeStatus = "เส้นทางบันทึกไว้เกิน 15 นาทีแล้ว กดอัพเดตเพื่อประเมินเวลาใหม่"; break;
-        case "ambiguous-route": routeStatus = "ยังระบุตำแหน่งรถบนเส้นทางไม่ได้ กดอัพเดตเส้นทางเพื่อประเมินใหม่"; break;
-      }
+      routeStatus = "รอตำแหน่งรถที่ชัดเจนและเป็นปัจจุบัน";
     } else if (estimate?.kind === "estimated") routeStatus = "";
     else routeStatus = visible ? "กำลังหาเส้นทาง..." : "รอกลับมาเปิดหน้าเว็บเพื่อหาเส้นทาง";
   }

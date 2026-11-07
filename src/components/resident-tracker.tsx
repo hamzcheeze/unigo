@@ -170,7 +170,7 @@ export function ResidentTracker({ demo, usb = false }: { demo: boolean; usb?: bo
         <div className="eta-heading">
           <div className="eta-value" role="status">
             {pickup.routeLoading ? <span className="eta-skeleton eta-skeleton-number" aria-label="กำลังอัพเดตเวลาถึง" /> :
-              pickup.estimate?.kind === "estimated" ? <span className="eta-number">ประมาณ {Math.max(1, Math.ceil(pickup.estimate.durationSeconds / 60))} นาที</span> :
+              pickup.estimate?.kind === "estimated" ? <span className="eta-number">{pickup.estimate.remainingMinutes <= 2 ? "รถใกล้จะถึงแล้ว" : `ประมาณ ${pickup.estimate.remainingMinutes} นาที`}</span> :
               <span>{!position ? "ยังไม่ได้เชื่อมต่อระบบพิกัด" : pickup.routeStatus || "ยังไม่มีเวลาถึงโดยประมาณ"}</span>}
           </div>
           {pickup.canRefreshRoute && <button className="refresh-route" aria-label="อัพเดตเส้นทาง" title="อัพเดตเส้นทาง" disabled={pickup.routeLoading} onClick={pickup.refreshRoute}>
@@ -178,9 +178,9 @@ export function ResidentTracker({ demo, usb = false }: { demo: boolean; usb?: bo
           </button>}
         </div>
         {pickup.routeLoading ? <span className="eta-skeleton eta-skeleton-distance" aria-hidden="true" /> :
-          pickup.estimate?.kind === "estimated" && <span>{(pickup.estimate.distanceMeters / 1000).toFixed(1)} กม. ตามเส้นทางถนน</span>}
+          pickup.estimate?.kind === "estimated" && <span>ห่างออกไป {(pickup.estimate.distanceMeters / 1000).toFixed(1)} กม. จากจุดที่คุณเลือก</span>}
         {pickup.routeLoading ? <span className="eta-skeleton eta-skeleton-description" aria-hidden="true" /> :
-          pickup.estimate?.kind === "estimated" && <small>ประเมินจากเส้นทางที่บันทึกไว้ เส้นทางจริงของรถอาจต่างออกไป</small>}
+          pickup.estimate?.kind === "estimated" && <small>ประเมินจากสภาพการจราจรล่าสุด กดรีเฟรชเพื่อดึงข้อมูลใหม่</small>}
         {!pickup.routeLoading && pickup.estimate?.kind === "estimated" && pickup.routeNotice && <small role="status">{pickup.routeNotice}</small>}
       </div> : null}
       {pickup.locationMessage && <p role="status">{pickup.locationMessage}</p>}

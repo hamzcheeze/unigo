@@ -1,7 +1,11 @@
-import { test } from "node:test";
+import { afterEach, beforeEach, mock, test } from "node:test";
 import assert from "node:assert/strict";
 import { PickupRouteCache, RouteUnavailableError, type RoutePair } from "../src/lib/pickup-route-cache";
 import type { RoadRoute } from "../src/lib/pickups";
+
+const now = Date.UTC(2026, 10, 7);
+beforeEach(() => { mock.method(Date, "now", () => now); });
+afterEach(() => { mock.restoreAll(); });
 
 const bts: RoutePair = { vehicleId: "SHUTTLE-01", stopId: "talat-phlu" };
 const mrt: RoutePair = { vehicleId: "SHUTTLE-01", stopId: "tha-phra" };
@@ -22,12 +26,12 @@ test("concurrent requests for the same vehicle and stop share one load", async (
   const first = cache.load(bts);
   const second = cache.load(bts);
   assert.equal(first, second);
-  assert.deepEqual(cache.get(bts), { kind: "loading", previousRoute: null });
+  assert.deepEqual(cache.get(bts), { kind: "loading", previousSnapshot: null });
   await Promise.resolve();
   assert.equal(calls, 1);
   deferred.resolve(route(bts));
   await first;
-  assert.deepEqual(cache.get(bts), { kind: "ready", route: route(bts) });
+  assert.deepEqual(cache.get(bts), { kind: "ready", snapshot: { route: route(bts), receivedAt: now } });
 });
 
 test("switching stops and vehicles preserves each successful route without fetching again", async () => {
@@ -39,8 +43,8 @@ test("switching stops and vehicles preserves each successful route without fetch
   await cache.load(bts);
   await cache.load(mrt);
   assert.deepEqual(calls, [bts, mrt, otherVehicle]);
-  assert.deepEqual(cache.get(bts), { kind: "ready", route: route(bts) });
-  assert.deepEqual(cache.get(otherVehicle), { kind: "ready", route: route(otherVehicle) });
+  assert.deepEqual(cache.get(bts), { kind: "ready", snapshot: { route: route(bts), receivedAt: now } });
+  assert.deepEqual(cache.get(otherVehicle), { kind: "ready", snapshot: { route: route(otherVehicle), receivedAt: now } });
 });
 
 test("a pending old selection still completes and stays cached while another selection loads", async () => {
@@ -56,8 +60,8 @@ test("a pending old selection still completes and stays cached while another sel
   await first;
   await cache.load(bts);
   assert.equal(calls, 2);
-  assert.deepEqual(cache.get(bts), { kind: "ready", route: route(bts) });
-  assert.deepEqual(cache.get(mrt), { kind: "ready", route: route(mrt) });
+  assert.deepEqual(cache.get(bts), { kind: "ready", snapshot: { route: route(bts), receivedAt: now } });
+  assert.deepEqual(cache.get(mrt), { kind: "ready", snapshot: { route: route(mrt), receivedAt: now } });
 });
 
 test("a failure stays visible without automatic retries, and explicit retry can recover", async () => {
@@ -70,10 +74,10 @@ test("a failure stays visible without automatic retries, and explicit retry can 
   await cache.load(bts);
   await cache.load(bts);
   assert.equal(calls, 1);
-  assert.deepEqual(cache.get(bts), { kind: "error", previousRoute: null, message: "โหลดเส้นทางไม่ได้ กรุณาลองใหม่" });
+  assert.deepEqual(cache.get(bts), { kind: "error", previousSnapshot: null, message: "โหลดเส้นทางไม่ได้ กรุณาลองใหม่" });
   await cache.retry(bts);
   assert.equal(calls, 2);
-  assert.deepEqual(cache.get(bts), { kind: "ready", route: route(bts) });
+  assert.deepEqual(cache.get(bts), { kind: "ready", snapshot: { route: route(bts), receivedAt: now } });
 });
 
 test("explicit refresh of a ready route is deduplicated while loading", async () => {
@@ -85,7 +89,7 @@ test("explicit refresh of a ready route is deduplicated while loading", async ()
   });
   await cache.load(bts);
   const refresh = cache.retry(bts);
-  assert.deepEqual(cache.get(bts), { kind: "loading", previousRoute: route(bts) });
+  assert.deepEqual(cache.get(bts), { kind: "loading", previousSnapshot: { route: route(bts), receivedAt: now } });
   assert.equal(cache.retry(bts), refresh);
   deferred.resolve(route(bts));
   await refresh;
@@ -101,7 +105,7 @@ test("a failed explicit refresh preserves the previous successful route", async 
   await cache.load(bts);
   await cache.retry(bts);
   assert.deepEqual(cache.get(bts), {
-    kind: "error", previousRoute: route(bts), message: "โหลดเส้นทางไม่ได้ กรุณาลองใหม่",
+    kind: "error", previousSnapshot: { route: route(bts), receivedAt: now }, message: "โหลดเส้นทางไม่ได้ กรุณาลองใหม่",
   });
   await cache.load(bts);
   assert.equal(calls, 2);
@@ -110,7 +114,7 @@ test("a failed explicit refresh preserves the previous successful route", async 
 test("a mismatched response cannot enter the requested vehicle and stop cache", async () => {
   const cache = new PickupRouteCache(async () => route(mrt));
   await cache.load(bts);
-  assert.deepEqual(cache.get(bts), { kind: "error", previousRoute: null, message: "ข้อมูลเส้นทางไม่ตรงกับรถหรือจุดขึ้นรถที่เลือก" });
+  assert.deepEqual(cache.get(bts), { kind: "error", previousSnapshot: null, message: "ข้อมูลเส้นทางไม่ตรงกับรถหรือจุดขึ้นรถที่เลือก" });
   assert.equal(cache.get(mrt), undefined);
 });
 
@@ -124,7 +128,7 @@ test("explicit refresh silently retries unavailable responses until ready and re
     return { ...route(pair), sourceRevision: calls };
   }, async () => {
     waits++;
-    assert.deepEqual(cache.get(bts), { kind: "loading", previousRoute: route(bts) });
+    assert.deepEqual(cache.get(bts), { kind: "loading", previousSnapshot: { route: route(bts), receivedAt: now } });
   });
   await cache.load(bts);
   const refresh = cache.retry(bts);
@@ -133,7 +137,7 @@ test("explicit refresh silently retries unavailable responses until ready and re
   await refresh;
   assert.equal(calls, 5);
   assert.equal(waits, 3);
-  assert.deepEqual(cache.get(bts), { kind: "ready", route: { ...route(bts), sourceRevision: 5 } });
+  assert.deepEqual(cache.get(bts), { kind: "ready", snapshot: { route: { ...route(bts), sourceRevision: 5 }, receivedAt: now } });
 });
 
 test("initial unavailable load retries three times before caching the final error", async () => {
@@ -173,14 +177,14 @@ test("refresh keeps skeleton state through all retries and only exposes the fina
     return route(pair);
   }, async () => {
     waits++;
-    assert.deepEqual(cache.get(bts), { kind: "loading", previousRoute: route(bts) });
+    assert.deepEqual(cache.get(bts), { kind: "loading", previousSnapshot: { route: route(bts), receivedAt: now } });
   });
   await cache.load(bts);
   fail = true;
   await cache.retry(bts);
   assert.equal(calls, 5);
   assert.equal(waits, 3);
-  assert.deepEqual(cache.get(bts), { kind: "error", previousRoute: route(bts), message: "ยังไม่พร้อมแสดงเส้นทางและเวลาถึง" });
+  assert.deepEqual(cache.get(bts), { kind: "error", previousSnapshot: { route: route(bts), receivedAt: now }, message: "ยังไม่พร้อมแสดงเส้นทางและเวลาถึง" });
   await cache.load(bts);
   assert.equal(calls, 5);
 });
@@ -193,7 +197,7 @@ test("retry can initialize an unseen pair and stops as soon as a retry succeeds"
     return route(pair);
   }, async () => { waits++; });
   await cache.retry(bts);
-  assert.deepEqual(cache.get(bts), { kind: "ready", route: route(bts) });
+  assert.deepEqual(cache.get(bts), { kind: "ready", snapshot: { route: route(bts), receivedAt: now } });
   assert.equal(calls, 2);
   assert.equal(waits, 1);
 });
@@ -201,16 +205,16 @@ test("retry can initialize an unseen pair and stops as soon as a retry succeeds"
 test("synchronous and non-Error loader failures become visible errors without retries", async () => {
   const sync = new PickupRouteCache(() => { throw new Error("sync failure"); });
   await sync.load(bts);
-  assert.deepEqual(sync.get(bts), { kind: "error", previousRoute: null, message: "sync failure" });
+  assert.deepEqual(sync.get(bts), { kind: "error", previousSnapshot: null, message: "sync failure" });
   const nonError = new PickupRouteCache(async () => { throw "offline"; });
   await nonError.load(bts);
-  assert.deepEqual(nonError.get(bts), { kind: "error", previousRoute: null, message: "โหลดเส้นทางไม่ได้ กรุณาลองใหม่" });
+  assert.deepEqual(nonError.get(bts), { kind: "error", previousSnapshot: null, message: "โหลดเส้นทางไม่ได้ กรุณาลองใหม่" });
 });
 
 test("wrong vehicle response is rejected even when its stop matches", async () => {
   const cache = new PickupRouteCache(async () => route(otherVehicle));
   await cache.load(bts);
-  assert.deepEqual(cache.get(bts), { kind: "error", previousRoute: null, message: "ข้อมูลเส้นทางไม่ตรงกับรถหรือจุดขึ้นรถที่เลือก" });
+  assert.deepEqual(cache.get(bts), { kind: "error", previousSnapshot: null, message: "ข้อมูลเส้นทางไม่ตรงกับรถหรือจุดขึ้นรถที่เลือก" });
   assert.equal(cache.get(otherVehicle), undefined);
 });
 
@@ -220,8 +224,8 @@ test("failure of one pair does not prevent another pair from becoming ready", as
     return route(pair);
   });
   await Promise.all([cache.load(bts), cache.load(mrt)]);
-  assert.deepEqual(cache.get(bts), { kind: "error", previousRoute: null, message: "failed BTS" });
-  assert.deepEqual(cache.get(mrt), { kind: "ready", route: route(mrt) });
+  assert.deepEqual(cache.get(bts), { kind: "error", previousSnapshot: null, message: "failed BTS" });
+  assert.deepEqual(cache.get(mrt), { kind: "ready", snapshot: { route: route(mrt), receivedAt: now } });
 });
 
 test("cancelling before a pending load begins does not call the loader and explicit retry recovers", async () => {
@@ -231,10 +235,10 @@ test("cancelling before a pending load begins does not call the loader and expli
   cache.cancelRetries();
   await pending;
   assert.equal(calls, 0);
-  assert.deepEqual(cache.get(bts), { kind: "error", previousRoute: null, message: "หยุดการอัพเดตเส้นทางแล้ว" });
+  assert.deepEqual(cache.get(bts), { kind: "error", previousSnapshot: null, message: "หยุดการอัพเดตเส้นทางแล้ว" });
   await cache.retry(bts);
   assert.equal(calls, 1);
-  assert.deepEqual(cache.get(bts), { kind: "ready", route: route(bts) });
+  assert.deepEqual(cache.get(bts), { kind: "ready", snapshot: { route: route(bts), receivedAt: now } });
 });
 
 test("a failed second refresh retains the last successful route for subsequent retries", async () => {
@@ -248,7 +252,7 @@ test("a failed second refresh retains the last successful route for subsequent r
   await cache.retry(bts);
   await cache.retry(bts);
   await cache.retry(bts);
-  assert.deepEqual(cache.get(bts), { kind: "error", previousRoute: previous, message: "refresh failure" });
+  assert.deepEqual(cache.get(bts), { kind: "error", previousSnapshot: { route: previous, receivedAt: now }, message: "refresh failure" });
   assert.equal(calls, 4);
 });
 
@@ -264,11 +268,11 @@ test("default retry waits the full thirty seconds before attempting again", asyn
   t.mock.timers.tick(29999);
   await Promise.resolve();
   assert.equal(calls, 1);
-  assert.deepEqual(cache.get(bts), { kind: "loading", previousRoute: null });
+  assert.deepEqual(cache.get(bts), { kind: "loading", previousSnapshot: null });
   t.mock.timers.tick(1);
   await pending;
   assert.equal(calls, 2);
-  assert.deepEqual(cache.get(bts), { kind: "ready", route: route(bts) });
+  assert.deepEqual(cache.get(bts), { kind: "ready", snapshot: { route: route(bts), receivedAt: now } });
 });
 
 test("cancelling the default retry timer stops another loader attempt", async t => {
@@ -281,7 +285,7 @@ test("cancelling the default retry timer stops another loader attempt", async t 
   await pending;
   t.mock.timers.tick(60000);
   assert.equal(calls, 1);
-  assert.deepEqual(cache.get(bts), { kind: "error", previousRoute: null, message: "หยุดการอัพเดตเส้นทางแล้ว" });
+  assert.deepEqual(cache.get(bts), { kind: "error", previousSnapshot: null, message: "หยุดการอัพเดตเส้นทางแล้ว" });
 });
 
 test("cancellation during loader failure also rejects an already-aborted retry wait", async () => {
@@ -293,5 +297,35 @@ test("cancellation during loader failure also rejects an already-aborted retry w
   });
   await cache.load(bts);
   assert.equal(calls, 1);
-  assert.deepEqual(cache.get(bts), { kind: "error", previousRoute: null, message: "หยุดการอัพเดตเส้นทางแล้ว" });
+  assert.deepEqual(cache.get(bts), { kind: "error", previousSnapshot: null, message: "หยุดการอัพเดตเส้นทางแล้ว" });
+});
+
+
+test("receipt time starts after loading and only a successful refresh resets the countdown", async () => {
+  let time = now;
+  let fail = false;
+  const deferred = Promise.withResolvers<RoadRoute>();
+  let calls = 0;
+  const cache = new PickupRouteCache(async pair => {
+    calls++;
+    if (fail) throw new Error("refresh failure");
+    return calls === 1 ? deferred.promise : { ...route(pair), durationSeconds: 780 };
+  }, undefined, () => time);
+  const pending = cache.load(bts);
+  time += 45000;
+  deferred.resolve(route(bts));
+  await pending;
+  assert.deepEqual(cache.get(bts), { kind: "ready", snapshot: { route: route(bts), receivedAt: now + 45000 } });
+  time += 120000;
+  await cache.load(mrt);
+  await cache.load(bts);
+  assert.deepEqual(cache.get(bts), { kind: "ready", snapshot: { route: route(bts), receivedAt: now + 45000 } });
+  time += 60000;
+  await cache.retry(bts);
+  const refreshed = { route: { ...route(bts), durationSeconds: 780 }, receivedAt: now + 225000 };
+  assert.deepEqual(cache.get(bts), { kind: "ready", snapshot: refreshed });
+  fail = true;
+  time += 60000;
+  await cache.retry(bts);
+  assert.deepEqual(cache.get(bts), { kind: "error", previousSnapshot: refreshed, message: "refresh failure" });
 });

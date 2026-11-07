@@ -2,10 +2,11 @@ import type { VehicleId } from "./domain";
 import type { PickupStopId, RoadRoute } from "./pickups";
 
 export type RoutePair = { vehicleId: VehicleId; stopId: PickupStopId };
+export type RouteSnapshot = { route: RoadRoute; receivedAt: number };
 export type PickupRouteEntry =
-  | { kind: "loading"; previousRoute: RoadRoute | null }
-  | { kind: "ready"; route: RoadRoute }
-  | { kind: "error"; previousRoute: RoadRoute | null; message: string };
+  | { kind: "loading"; previousSnapshot: RouteSnapshot | null }
+  | { kind: "ready"; snapshot: RouteSnapshot }
+  | { kind: "error"; previousSnapshot: RouteSnapshot | null; message: string };
 
 export class RouteUnavailableError extends Error {
   constructor() { super("ยังไม่พร้อมแสดงเส้นทางและเวลาถึง"); }
@@ -29,6 +30,7 @@ export class PickupRouteCache {
   constructor(
     private readonly loader: (pair: RoutePair) => Promise<RoadRoute>,
     private readonly waitToRetry: (signal: AbortSignal) => Promise<void> = waitForRetry,
+    private readonly clock: () => number = Date.now,
   ) {}
 
   cancelRetries() {
@@ -51,9 +53,9 @@ export class PickupRouteCache {
     return this.request(pair, null);
   }
 
-  private request(pair: RoutePair, previousRoute: RoadRoute | null): Promise<void> {
+  private request(pair: RoutePair, previousSnapshot: RouteSnapshot | null): Promise<void> {
     const key = this.key(pair);
-    this.entries.set(key, { kind: "loading", previousRoute });
+    this.entries.set(key, { kind: "loading", previousSnapshot });
     const controller = new AbortController();
     this.retryControllers.add(controller);
     const load = async () => {
@@ -72,9 +74,9 @@ export class PickupRouteCache {
       if (route.vehicleId !== pair.vehicleId || route.stopId !== pair.stopId) {
         throw new Error("ข้อมูลเส้นทางไม่ตรงกับรถหรือจุดขึ้นรถที่เลือก");
       }
-      this.entries.set(key, { kind: "ready", route });
+      this.entries.set(key, { kind: "ready", snapshot: { route, receivedAt: this.clock() } });
     }).catch((error: unknown) => {
-      this.entries.set(key, { kind: "error", previousRoute, message: error instanceof Error ? error.message : "โหลดเส้นทางไม่ได้ กรุณาลองใหม่" });
+      this.entries.set(key, { kind: "error", previousSnapshot, message: error instanceof Error ? error.message : "โหลดเส้นทางไม่ได้ กรุณาลองใหม่" });
     }).finally(() => {
       this.pending.delete(key);
       this.retryControllers.delete(controller);
@@ -87,7 +89,7 @@ export class PickupRouteCache {
     const existing = this.pending.get(this.key(pair));
     if (existing) return existing;
     const previous = this.get(pair);
-    const previousRoute = previous?.kind === "ready" ? previous.route : previous?.previousRoute ?? null;
-    return this.request(pair, previousRoute);
+    const previousSnapshot = previous?.kind === "ready" ? previous.snapshot : previous?.previousSnapshot ?? null;
+    return this.request(pair, previousSnapshot);
   }
 }
