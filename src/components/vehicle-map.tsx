@@ -5,7 +5,7 @@ import type { Map, Marker, Circle, Polyline } from "leaflet";
 import { PICKUP_STOPS, type PickupSelection, type RoadRoute } from "@/lib/pickups";
 import type { Position } from "@/lib/domain";
 import { TargetIcon } from "./icons";
-import { remainingRoutePoints } from "@/lib/remaining-route";
+import { remainingRoute } from "@/lib/remaining-route";
 
 type Props = { position: Position | null; color: string; number: string; stale: boolean; selection: PickupSelection | null; route: RoadRoute | null };
 type Leaflet = typeof import("leaflet");
@@ -96,9 +96,9 @@ export function VehicleMap({ position, color, number, stale, selection, route }:
       routeLine.current?.remove(); routeLine.current = null; drawnRoute.current = null;
       return;
     }
-    const points = remainingRoutePoints({ route, position: stale ? null : position, now: Date.now() });
-    if (!points && drawnRoute.current === route) return;
-    const displayed = points ?? route.points;
+    const progress = remainingRoute({ route, position: stale ? null : position, now: Date.now() });
+    if (!progress && drawnRoute.current === route) return;
+    const displayed = progress?.points ?? route.points;
     if (routeLine.current) routeLine.current.setLatLngs(displayed);
     else routeLine.current = L.polyline(displayed, { color: "#c90060", weight: 5, opacity: .85 }).addTo(instance);
     drawnRoute.current = route;

@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { Position } from "../src/lib/domain";
 import type { RoadRoute } from "../src/lib/pickups";
-import { remainingRoutePoints } from "../src/lib/remaining-route";
+import { remainingRoute } from "../src/lib/remaining-route";
 
 const now = Date.UTC(2026, 10, 7);
 const route: RoadRoute = {
@@ -15,7 +15,7 @@ const position: Position = {
   latitude: 0, longitude: 0.005, accuracy_meters: 5, speed_meters_per_second: 0, bearing_degrees: 90,
   captured_at: new Date(now).toISOString(), received_at: new Date(now).toISOString(),
 };
-const clip = (fix: Position | null = position, road = route) => remainingRoutePoints({ route: road, position: fix, now });
+const clip = (fix: Position | null = position, road = route) => remainingRoute({ route: road, position: fix, now })?.points ?? null;
 
 test("moving along a cached road removes the prefix and preserves corners and destination", () => {
   const before = structuredClone(route);
@@ -48,4 +48,11 @@ test("nearby road crossings with distant route progress remain ambiguous", () =>
 test("zero-length segments are skipped and completely degenerate geometry cannot be projected", () => {
   assert.deepEqual(clip(position, { ...route, points: [[0, 0], [0, 0], [0, 0.01]] }), [[0, 0.005], [0, 0.01]]);
   assert.equal(clip(position, { ...route, points: [[0, 0], [0, 0]] }), null);
+});
+
+test("the shared projection reports the remaining fraction used by distance and the map", () => {
+  const straight: RoadRoute = { ...route, points: [[0, 0], [0, 0.01]] };
+  assert.deepEqual(remainingRoute({ route: straight, position, now }), { points: [[0, 0.005], [0, 0.01]], remainingFraction: 0.5 });
+  assert.deepEqual(remainingRoute({ route: straight, position: { ...position, longitude: -0.0001 }, now }), { points: [[0, -0.0001], [0, 0], [0, 0.01]], remainingFraction: 1 });
+  assert.deepEqual(remainingRoute({ route: straight, position: { ...position, longitude: 0.01 }, now }), { points: [[0, 0.01], [0, 0.01]], remainingFraction: 0 });
 });

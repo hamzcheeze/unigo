@@ -62,7 +62,7 @@ export function usePickup({ position, vehicleId, now, demo }: { position: Positi
   useEffect(() => {
     if (!stopId || demo || !live || !visible) return;
     let active = true;
-    void routeCache.load({ vehicleId, stopId }, position?.speed_meters_per_second ?? null).then(() => {
+    void routeCache.load({ vehicleId, stopId }).then(() => {
       if (active) renderRoutes(value => value + 1);
     });
     return () => { active = false; };
@@ -84,7 +84,7 @@ export function usePickup({ position, vehicleId, now, demo }: { position: Positi
   }
   const refreshRoute = () => {
     if (!stopId || !live || demo) return;
-    const request = routeCache.retry({ vehicleId, stopId }, position?.speed_meters_per_second ?? null);
+    const request = routeCache.retry({ vehicleId, stopId });
     renderRoutes(value => value + 1);
     void request.then(() => renderRoutes(value => value + 1));
   };

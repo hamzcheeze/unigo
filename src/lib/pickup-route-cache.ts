@@ -2,7 +2,7 @@ import type { VehicleId } from "./domain";
 import type { PickupStopId, RoadRoute } from "./pickups";
 
 export type RoutePair = { vehicleId: VehicleId; stopId: PickupStopId };
-export type RouteSnapshot = { route: RoadRoute; receivedAt: number; speedMetersPerSecond: number | null };
+export type RouteSnapshot = { route: RoadRoute; receivedAt: number };
 export type PickupRouteEntry =
   | { kind: "loading"; previousSnapshot: RouteSnapshot | null }
   | { kind: "ready"; snapshot: RouteSnapshot }
@@ -45,15 +45,15 @@ export class PickupRouteCache {
     return this.entries.get(this.key(pair));
   }
 
-  load(pair: RoutePair, speedMetersPerSecond: number | null = null): Promise<void> {
+  load(pair: RoutePair): Promise<void> {
     const key = this.key(pair);
     const existing = this.pending.get(key);
     if (existing) return existing;
     if (this.entries.has(key)) return Promise.resolve();
-    return this.request(pair, null, speedMetersPerSecond);
+    return this.request(pair, null);
   }
 
-  private request(pair: RoutePair, previousSnapshot: RouteSnapshot | null, speedMetersPerSecond: number | null): Promise<void> {
+  private request(pair: RoutePair, previousSnapshot: RouteSnapshot | null): Promise<void> {
     const key = this.key(pair);
     this.entries.set(key, { kind: "loading", previousSnapshot });
     const controller = new AbortController();
@@ -74,7 +74,7 @@ export class PickupRouteCache {
       if (route.vehicleId !== pair.vehicleId || route.stopId !== pair.stopId) {
         throw new Error("ข้อมูลเส้นทางไม่ตรงกับรถหรือจุดขึ้นรถที่เลือก");
       }
-      this.entries.set(key, { kind: "ready", snapshot: { route, receivedAt: this.clock(), speedMetersPerSecond } });
+      this.entries.set(key, { kind: "ready", snapshot: { route, receivedAt: this.clock() } });
     }).catch((error: unknown) => {
       this.entries.set(key, { kind: "error", previousSnapshot, message: error instanceof Error ? error.message : "โหลดเส้นทางไม่ได้ กรุณาลองใหม่" });
     }).finally(() => {
@@ -85,11 +85,11 @@ export class PickupRouteCache {
     return request;
   }
 
-  retry(pair: RoutePair, speedMetersPerSecond: number | null = null): Promise<void> {
+  retry(pair: RoutePair): Promise<void> {
     const existing = this.pending.get(this.key(pair));
     if (existing) return existing;
     const previous = this.get(pair);
     const previousSnapshot = previous?.kind === "ready" ? previous.snapshot : previous?.previousSnapshot ?? null;
-    return this.request(pair, previousSnapshot, speedMetersPerSecond);
+    return this.request(pair, previousSnapshot);
   }
 }

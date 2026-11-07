@@ -1,11 +1,11 @@
 import { freshness, type Position } from "./domain";
 import type { RoadRoute } from "./pickups";
 
-export function remainingRoutePoints({ route, position, now }: {
+export function remainingRoute({ route, position, now }: {
   route: RoadRoute;
   position: Position | null;
   now: number;
-}): RoadRoute["points"] | null {
+}): { points: RoadRoute["points"]; remainingFraction: number } | null {
   if (!position || position.vehicle_id !== route.vehicleId || freshness(position, now).kind !== "live" || position.accuracy_meters === null || position.accuracy_meters > 50) return null;
   const accuracy = position.accuracy_meters;
   const metresPerDegree = 6371000 * Math.PI / 180;
@@ -36,5 +36,5 @@ export function remainingRoutePoints({ route, position, now }: {
   const points: RoadRoute["points"] = [[position.latitude, position.longitude]];
   if (nearest.offset > 0.01) points.push(projected);
   points.push(...route.points.slice(nearest.index));
-  return points;
+  return { points, remainingFraction: Math.max(0, Math.min(1, 1 - nearest.progress / length)) };
 }

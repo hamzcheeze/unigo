@@ -1,8 +1,9 @@
 import { freshness, type Position } from "./domain";
+import { remainingRoute } from "./remaining-route";
 import type { RouteSnapshot } from "./pickup-route-cache";
 
 export type RouteEstimate =
-  | { kind: "estimated"; distanceMeters: number; remainingMinutes: number }
+  | { kind: "estimated"; distanceMeters: number | null; remainingMinutes: number }
   | { kind: "unavailable"; reason: "gps" };
 
 export function estimateRemainingRoute({ snapshot, position, now }: {
@@ -15,9 +16,10 @@ export function estimateRemainingRoute({ snapshot, position, now }: {
     return { kind: "unavailable", reason: "gps" };
   }
   const elapsedMinutes = Math.floor(Math.max(0, now - receivedAt) / 60000);
+  const progress = remainingRoute({ route, position, now });
   return {
     kind: "estimated",
-    distanceMeters: Math.max(0, route.distanceMeters - (snapshot.speedMetersPerSecond ?? 0) * 60 * elapsedMinutes),
+    distanceMeters: progress ? route.distanceMeters * progress.remainingFraction : null,
     remainingMinutes: Math.max(0, Math.ceil(route.durationSeconds / 60) - elapsedMinutes),
   };
 }
