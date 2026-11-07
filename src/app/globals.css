@@ -164,7 +164,7 @@ button:disabled { cursor: default; opacity: .55; }
 @media (min-width: 381px) and (max-width: 500px) {
   .pickup-heading h2, .pickup-panel-selected .pickup-eta .eta-number { font-size: 22px; }
 }
-.eta-heading { display: flex; align-items: center; gap: 8px; }
+.eta-heading { min-height: 44px; display: flex; align-items: center; gap: 8px; }
 .eta-value { min-width: 0; }
 .refresh-route { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: #a3a3a3; }
 .refresh-route:hover { background: radial-gradient(circle at center, #ebebeb 0 13px, transparent 13px); }
@@ -191,3 +191,10 @@ button:disabled { cursor: default; opacity: .55; }
   .pickup-heading { align-items: stretch; flex-direction: column; }
   .locate-pickup { width: 100%; }
 }
+
+.site { transition: opacity 180ms ease; }
+.arrival-placeholder { visibility: hidden; }
+.site-reloading { opacity: 0; pointer-events: none; }
+.eta-arrived { display: inline-block; animation: arrival-appear 220ms ease-out; }
+@keyframes arrival-appear { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { .site { transition: none; } .site-reloading { opacity: 1; } .eta-arrived { animation: none; } }

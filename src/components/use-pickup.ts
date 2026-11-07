@@ -5,6 +5,7 @@ import { PICKUP_STOPS, nearestPickup, routeResponseSchema, type PickupSelection,
 import { freshness, type Position, type VehicleId } from "@/lib/domain";
 import { PickupRouteCache, RouteUnavailableError } from "@/lib/pickup-route-cache";
 import { estimateRemainingRoute } from "@/lib/route-estimate";
+import { usePickupArrival } from "./use-pickup-arrival";
 import { requestResidentLocation, type ResidentLocation } from "@/lib/resident-location";
 
 type LocationState = { kind: "idle" | "searching" | "denied" | "unavailable" } | ResidentLocation;
@@ -71,6 +72,8 @@ export function usePickup({ position, vehicleId, now, demo }: { position: Positi
   const snapshot = entry?.kind === "ready" ? entry.snapshot : entry?.previousSnapshot ?? null;
   const route = snapshot?.route ?? null;
   const estimate = snapshot ? estimateRemainingRoute({ snapshot, position, now }) : null;
+  const arrival = usePickupArrival({ vehicleId, selection, position, route, now, demo });
+  useEffect(() => { if (arrival.arrived) routeCache.cancelRetries(); }, [arrival.arrived, routeCache]);
   let routeStatus = "เลือกจุดขึ้นรถเพื่อดูเส้นทาง";
   if (stopId) {
     if (demo) routeStatus = "โหมดตัวอย่างไม่คำนวณเวลาถึงจุดขึ้นรถ";
@@ -83,7 +86,7 @@ export function usePickup({ position, vehicleId, now, demo }: { position: Positi
     else routeStatus = visible ? "กำลังหาเส้นทาง..." : "รอกลับมาเปิดหน้าเว็บเพื่อหาเส้นทาง";
   }
   const refreshRoute = () => {
-    if (!stopId || !live || demo) return;
+    if (!stopId || !live || demo || arrival.arrived) return;
     const request = routeCache.retry({ vehicleId, stopId });
     renderRoutes(value => value + 1);
     void request.then(() => renderRoutes(value => value + 1));
@@ -104,5 +107,5 @@ export function usePickup({ position, vehicleId, now, demo }: { position: Positi
   if (location.kind === "searching") locationMessage = "กำลังหาตำแหน่งของคุณ";
   else if (location.kind === "denied") locationMessage = "ยังไม่ได้อนุญาตตำแหน่ง เลือกจุดขึ้นรถเองได้";
   else if (location.kind === "unavailable") locationMessage = "หาตำแหน่งไม่ได้ ลองใหม่หรือเลือกจุดขึ้นรถเอง";
-  return { selected, selection, select, locate, locationMessage, route, estimate, routeStatus, refreshRoute, routeNotice: route && entry?.kind === "error" ? entry.message : null, routeLoading: entry?.kind === "loading" || Boolean(stopId && live && visible && !demo && !entry), canRefreshRoute: live && !demo };
+  return { ...arrival, selected, selection, select, locate, locationMessage, route, estimate, routeStatus, refreshRoute, routeNotice: route && entry?.kind === "error" ? entry.message : null, routeLoading: !arrival.arrived && (entry?.kind === "loading" || Boolean(stopId && live && visible && !demo && !entry)), canRefreshRoute: live && !demo && !arrival.arrived };
 }

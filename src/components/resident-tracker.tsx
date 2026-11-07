@@ -150,7 +150,7 @@ export function ResidentTracker({ demo, usb = false }: { demo: boolean; usb?: bo
   const number = selectedId.slice(-1);
   const reconnect = useCallback(() => setRefresh((value) => value + 1), []);
 
-  return <main className="site">
+  return <main className={"site" + (pickup.reloading ? " site-reloading" : "")}>
     <header className="header">
       <h1 className="header-title"><span className="header-name">UNiO Charan 3</span>{" "}<span className="header-descriptor">รถชมพู</span></h1>
     </header>
@@ -169,7 +169,7 @@ export function ResidentTracker({ demo, usb = false }: { demo: boolean; usb?: bo
       {pickup.selected ? <div className="pickup-eta" aria-busy={pickup.routeLoading}>
         <div className="eta-heading">
           <div className="eta-value" role="status">
-            {pickup.routeLoading ? <span className="eta-skeleton eta-skeleton-number" aria-label="กำลังอัพเดตเวลาถึง" /> :
+            {pickup.arrived ? <span className="eta-number eta-arrived">รถมาถึงแล้ว</span> : pickup.routeLoading ? <span className="eta-skeleton eta-skeleton-number" aria-label="กำลังอัพเดตเวลาถึง" /> :
               pickup.estimate?.kind === "estimated" ? <span className="eta-number">{pickup.estimate.remainingMinutes <= 2 ? "รถใกล้จะถึงแล้ว" : `ประมาณ ${pickup.estimate.remainingMinutes} นาที`}</span> :
               <span>{!position ? "ยังไม่ได้เชื่อมต่อระบบพิกัด" : pickup.routeStatus || "ยังไม่มีเวลาถึงโดยประมาณ"}</span>}
           </div>
@@ -177,11 +177,11 @@ export function ResidentTracker({ demo, usb = false }: { demo: boolean; usb?: bo
             <svg width="16" height="16" viewBox="0 0 32 32" fill="currentColor" aria-hidden="true"><path d="M9 5.6A12 12 0 0 1 28 16h4l-7 12-7-12h6A8 8 0 0 0 11.3 9.1Z" /><path d="M9 5.6A12 12 0 0 1 28 16h4l-7 12-7-12h6A8 8 0 0 0 11.3 9.1Z" transform="rotate(180 16 16)" /></svg>
           </button>}
         </div>
-        {pickup.routeLoading ? <span className="eta-skeleton eta-skeleton-distance" aria-hidden="true" /> :
-          pickup.estimate?.kind === "estimated" && <span>{pickup.estimate.distanceMeters === null ? "กดรีเฟรชเพื่อประเมินระยะทางใหม่" : <>ห่างออกไป {(pickup.estimate.distanceMeters / 1000).toFixed(1)} กม. จากจุดที่คุณเลือก</>}</span>}
-        {pickup.routeLoading ? <span className="eta-skeleton eta-skeleton-description" aria-hidden="true" /> :
+        {pickup.arrived ? <span className="arrival-placeholder" aria-hidden="true">ห่างออกไป 0.0 กม. จากจุดที่คุณเลือก</span> : pickup.routeLoading ? <span className="eta-skeleton eta-skeleton-distance" aria-hidden="true" /> :
+          !pickup.arrived && pickup.estimate?.kind === "estimated" && <span>{pickup.estimate.distanceMeters === null ? "กดรีเฟรชเพื่อประเมินระยะทางใหม่" : <>ห่างออกไป {(pickup.estimate.distanceMeters / 1000).toFixed(1)} กม. จากจุดที่คุณเลือก</>}</span>}
+        {pickup.arrived ? <small className="arrival-placeholder" aria-hidden="true">ระยะทางจาก GPS บนเส้นทางที่บันทึกไว้ เวลานับถอยหลังจากการอัพเดตล่าสุด</small> : pickup.routeLoading ? <span className="eta-skeleton eta-skeleton-description" aria-hidden="true" /> :
           pickup.estimate?.kind === "estimated" && <small>ระยะทางจาก GPS บนเส้นทางที่บันทึกไว้ เวลานับถอยหลังจากการอัพเดตล่าสุด</small>}
-        {!pickup.routeLoading && pickup.estimate?.kind === "estimated" && pickup.routeNotice && <small role="status">{pickup.routeNotice}</small>}
+        {!pickup.arrived && !pickup.routeLoading && pickup.estimate?.kind === "estimated" && pickup.routeNotice && <small role="status">{pickup.routeNotice}</small>}
       </div> : null}
       {pickup.locationMessage && <p role="status">{pickup.locationMessage}</p>}
       <div className="pickup-options">{PICKUP_STOPS.map(stop => <button key={stop.id} aria-pressed={pickup.selected?.id === stop.id} onClick={() => pickup.select(stop.id)}>{stop.label}</button>)}</div>
