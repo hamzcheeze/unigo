@@ -5,6 +5,7 @@ import type { Map, Marker, Circle, Polyline } from "leaflet";
 import { PICKUP_STOPS, type PickupSelection, type RoadRoute } from "@/lib/pickups";
 import type { Position } from "@/lib/domain";
 import { TargetIcon } from "./icons";
+import { remainingRoutePoints } from "@/lib/remaining-route";
 
 type Props = { position: Position | null; color: string; number: string; stale: boolean; selection: PickupSelection | null; route: RoadRoute | null };
 type Leaflet = typeof import("leaflet");
@@ -19,6 +20,7 @@ export function VehicleMap({ position, color, number, stale, selection, route }:
   const marker = useRef<Marker | null>(null);
   const markerAppearance = useRef<string | null>(null);
   const routeLine = useRef<Polyline | null>(null);
+  const drawnRoute = useRef<RoadRoute | null>(null);
   const circle = useRef<Circle | null>(null);
   const library = useRef<Leaflet | null>(null);
   const [ready, setReady] = useState(false);
@@ -48,7 +50,7 @@ export function VehicleMap({ position, color, number, stale, selection, route }:
       instance.on("dragstart", () => { routeFitPending.current = false; followRef.current = false; setFollow(false); });
       setReady(true);
     }).catch(() => { if (!cancelled) setError(true); });
-    return () => { cancelled = true; map.current?.remove(); map.current = null; marker.current = null; circle.current = null; };
+    return () => { cancelled = true; map.current?.remove(); map.current = null; marker.current = null; circle.current = null; routeLine.current = null; drawnRoute.current = null; };
   }, []);
 
   useEffect(() => {
@@ -90,11 +92,17 @@ export function VehicleMap({ position, color, number, stale, selection, route }:
     const instance = map.current;
     const L = library.current;
     if (!ready || !instance || !L) return;
-    routeLine.current?.remove(); routeLine.current = null;
-    if (route) {
-      routeLine.current = L.polyline(route.points, { color: "#c90060", weight: 5, opacity: .85 }).addTo(instance);
+    if (!route) {
+      routeLine.current?.remove(); routeLine.current = null; drawnRoute.current = null;
+      return;
     }
-  }, [route, ready]);
+    const points = remainingRoutePoints({ route, position: stale ? null : position, now: Date.now() });
+    if (!points && drawnRoute.current === route) return;
+    const displayed = points ?? route.points;
+    if (routeLine.current) routeLine.current.setLatLngs(displayed);
+    else routeLine.current = L.polyline(displayed, { color: "#c90060", weight: 5, opacity: .85 }).addTo(instance);
+    drawnRoute.current = route;
+  }, [route, position, stale, ready]);
 
   useEffect(() => {
     const instance = map.current;
