@@ -3,8 +3,9 @@ import type { PickupStopId, RoadRoute } from "./pickups";
 
 export type RoutePair = { vehicleId: VehicleId; stopId: PickupStopId };
 export type RouteSnapshot = { route: RoadRoute; receivedAt: number };
+type RouteTrigger = "automatic" | "manual";
 export type PickupRouteEntry =
-  | { kind: "loading"; previousSnapshot: RouteSnapshot | null }
+  | { kind: "loading"; trigger: RouteTrigger; previousSnapshot: RouteSnapshot | null }
   | { kind: "ready"; snapshot: RouteSnapshot }
   | { kind: "error"; previousSnapshot: RouteSnapshot | null; message: string };
 
@@ -63,12 +64,12 @@ export class PickupRouteCache {
     const existing = this.pending.get(key);
     if (existing) return existing.promise;
     if (this.entries.has(key)) return Promise.resolve();
-    return this.request(pair, null);
+    return this.request(pair, null, "automatic");
   }
 
-  private request(pair: RoutePair, previousSnapshot: RouteSnapshot | null): Promise<void> {
+  private request(pair: RoutePair, previousSnapshot: RouteSnapshot | null, trigger: RouteTrigger): Promise<void> {
     const key = this.key(pair);
-    this.entries.set(key, { kind: "loading", previousSnapshot });
+    this.entries.set(key, { kind: "loading", trigger, previousSnapshot });
     const controller = new AbortController();
     this.retryControllers.add(controller);
     const load = async () => {
@@ -110,6 +111,6 @@ export class PickupRouteCache {
     if (existing) return existing.promise;
     const previous = this.get(pair);
     const previousSnapshot = previous?.kind === "ready" ? previous.snapshot : previous?.previousSnapshot ?? null;
-    return this.request(pair, previousSnapshot);
+    return this.request(pair, previousSnapshot, "manual");
   }
 }

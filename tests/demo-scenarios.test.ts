@@ -34,3 +34,21 @@ test("GPS and error previews show their observable fallback", () => {
   assert.equal(preview("refresh-error").pickup.estimate?.kind, "estimated");
   assert.equal(preview("map-error").mapPreview, "error");
 });
+
+test("automatic loading keeps the skeleton without a refresh action, while manual refresh spins", () => {
+  for (const scenario of ["no-gps", "stale-gps", "inaccurate-gps", "waiting-tab", "loading"] satisfies DemoScenario[]) {
+    const { pickup } = preview(scenario);
+    assert.deepEqual({ loading: pickup.routeLoading, spinning: pickup.routeRefreshing, button: pickup.canRefreshRoute, eta: pickup.estimate }, {
+      loading: true, spinning: false, button: false, eta: null,
+    });
+  }
+  const { pickup } = preview("refreshing");
+  assert.deepEqual({ loading: pickup.routeLoading, spinning: pickup.routeRefreshing, button: pickup.canRefreshRoute }, {
+    loading: true, spinning: true, button: true,
+  });
+  const ready = preview("estimated").pickup;
+  assert.deepEqual({ loading: ready.routeLoading, spinning: ready.routeRefreshing, button: ready.canRefreshRoute, eta: ready.estimate }, {
+    loading: false, spinning: false, button: true, eta: { kind: "estimated", remainingMinutes: 8, distanceMeters: 1700 },
+  });
+  assert.equal(ready.route?.distanceMeters, 1700);
+});

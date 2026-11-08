@@ -26,12 +26,37 @@ test("concurrent requests for the same vehicle and stop share one load", async (
   const first = cache.load(bts);
   const second = cache.load(bts);
   assert.equal(first, second);
-  assert.deepEqual(cache.get(bts), { kind: "loading", previousSnapshot: null });
+  assert.deepEqual(cache.get(bts), { kind: "loading", trigger: "automatic", previousSnapshot: null });
   await Promise.resolve();
   assert.equal(calls, 1);
   deferred.resolve(route(bts));
   await first;
   assert.deepEqual(cache.get(bts), { kind: "ready", snapshot: { route: route(bts), receivedAt: now } });
+});
+
+test("loading retains its automatic or manual trigger until the shared request completes", async () => {
+  const initial = Promise.withResolvers<RoadRoute>();
+  const updated = Promise.withResolvers<RoadRoute>();
+  let calls = 0;
+  const cache = new PickupRouteCache(() => ++calls === 1 ? initial.promise : updated.promise);
+  const automatic = cache.load(bts);
+  assert.equal(cache.retry(bts), automatic);
+  assert.deepEqual(cache.get(bts), { kind: "loading", trigger: "automatic", previousSnapshot: null });
+  initial.resolve(route(bts));
+  await automatic;
+  assert.deepEqual(cache.get(bts), { kind: "ready", snapshot: { route: route(bts), receivedAt: now } });
+
+  const manual = cache.retry(bts);
+  assert.equal(cache.load(bts), manual);
+  assert.equal(cache.retry(bts), manual);
+  assert.deepEqual(cache.get(bts), {
+    kind: "loading", trigger: "manual", previousSnapshot: { route: route(bts), receivedAt: now },
+  });
+  const replacementRoute = { ...route(bts), durationSeconds: 420, sourceRevision: 2 };
+  updated.resolve(replacementRoute);
+  await manual;
+  assert.deepEqual(cache.get(bts), { kind: "ready", snapshot: { route: replacementRoute, receivedAt: now } });
+  assert.equal(calls, 2);
 });
 
 test("switching stops and vehicles preserves each successful route without fetching again", async () => {
@@ -89,7 +114,7 @@ test("explicit refresh of a ready route is deduplicated while loading", async ()
   });
   await cache.load(bts);
   const refresh = cache.retry(bts);
-  assert.deepEqual(cache.get(bts), { kind: "loading", previousSnapshot: { route: route(bts), receivedAt: now } });
+  assert.deepEqual(cache.get(bts), { kind: "loading", trigger: "manual", previousSnapshot: { route: route(bts), receivedAt: now } });
   assert.equal(cache.retry(bts), refresh);
   deferred.resolve(route(bts));
   await refresh;
@@ -128,7 +153,7 @@ test("explicit refresh silently retries unavailable responses until ready and re
     return { ...route(pair), sourceRevision: calls };
   }, async () => {
     waits++;
-    assert.deepEqual(cache.get(bts), { kind: "loading", previousSnapshot: { route: route(bts), receivedAt: now } });
+    assert.deepEqual(cache.get(bts), { kind: "loading", trigger: "manual", previousSnapshot: { route: route(bts), receivedAt: now } });
   });
   await cache.load(bts);
   const refresh = cache.retry(bts);
@@ -177,7 +202,7 @@ test("refresh keeps skeleton state through all retries and only exposes the fina
     return route(pair);
   }, async () => {
     waits++;
-    assert.deepEqual(cache.get(bts), { kind: "loading", previousSnapshot: { route: route(bts), receivedAt: now } });
+    assert.deepEqual(cache.get(bts), { kind: "loading", trigger: "manual", previousSnapshot: { route: route(bts), receivedAt: now } });
   });
   await cache.load(bts);
   fail = true;
@@ -268,7 +293,7 @@ test("default retry waits the full thirty seconds before attempting again", asyn
   t.mock.timers.tick(29999);
   await Promise.resolve();
   assert.equal(calls, 1);
-  assert.deepEqual(cache.get(bts), { kind: "loading", previousSnapshot: null });
+  assert.deepEqual(cache.get(bts), { kind: "loading", trigger: "automatic", previousSnapshot: null });
   t.mock.timers.tick(1);
   await pending;
   assert.equal(calls, 2);
@@ -364,7 +389,7 @@ test("late success or failure after invalidation cannot replace or detach a new 
     if (outcome === "success") oldResponse.resolve(route(bts));
     else oldResponse.reject(new Error("old failure"));
     await oldRequest;
-    assert.deepEqual(cache.get(bts), { kind: "loading", previousSnapshot: null });
+    assert.deepEqual(cache.get(bts), { kind: "loading", trigger: "automatic", previousSnapshot: null });
     assert.equal(cache.load(bts), replacement);
     assert.equal(signals.length, 2);
     const updatedRoute = { ...route(bts), sourceRevision: 2 };

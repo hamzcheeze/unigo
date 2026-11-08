@@ -57,13 +57,13 @@ export function demoState({ scenario, vehicleId, stopId, selection, now, select,
     error: scenario === "position-invalid" ? "รูปแบบข้อมูลตำแหน่งไม่ถูกต้อง" : scenario === "position-error" ? "โหลดตำแหน่งล่าสุดไม่ได้ กรุณาลองเชื่อมต่อใหม่" : null,
     mapPreview: scenario === "map-loading" ? "loading" : scenario === "map-error" ? "error" : scenario === "tile-error" ? "tiles" : "normal",
     pickup: {
-      selected, selection, select, locate, refreshRoute,
+      selected, selection, select, locate, refreshRoute, locating: scenario === "searching",
       arrived, reloading: false, route: selected && !waiting && !failure && scenario !== "loading" ? route : null,
       estimate: selected && !waiting && !failure && !routeLoading ? { kind: "estimated", remainingMinutes: near ? 1 : 8, distanceMeters: scenario === "distance-unavailable" ? null : near ? 20 : 1700 } : null,
-      routeLoading, canRefreshRoute: Boolean(selected && !waiting && !arrived),
+      routeLoading, routeRefreshing: scenario === "refreshing", canRefreshRoute: Boolean(selected && !waiting && !arrived && (!routeLoading || scenario === "refreshing")),
       routeStatus: waiting ? "รอตำแหน่งรถที่ชัดเจนและเป็นปัจจุบัน" : routeErrors[scenario] ?? "กำลังหาเส้นทาง...",
       routeNotice: scenario === "refresh-error" ? routeError : null,
-      locationMessage: scenario === "searching" ? "กำลังหาตำแหน่งของคุณ" : scenario === "denied" ? "ยังไม่ได้อนุญาตตำแหน่ง เลือกจุดขึ้นรถเองได้" : scenario === "location-unavailable" ? "หาตำแหน่งไม่ได้ ลองใหม่หรือเลือกจุดขึ้นรถเอง" : null,
+      locationMessage: scenario === "denied" ? "ยังไม่ได้อนุญาตตำแหน่ง เลือกจุดขึ้นรถเองได้" : scenario === "location-unavailable" ? "หาตำแหน่งไม่ได้ ลองใหม่หรือเลือกจุดขึ้นรถเอง" : null,
     },
   };
 }

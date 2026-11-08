@@ -111,14 +111,16 @@ export function usePickup({ position, vehicleId, now, demo }: { position: Positi
     setSelection(previous => ({ stopId, source: "manual", revision: (previous?.revision ?? 0) + 1 }));
   };
   const locate = () => {
+    if (location.kind === "searching") return;
     locationRequest.current++;
     setLocation({ kind: "searching" });
     setEnabled(true);
     setAttempt(value => value + 1);
   };
   let locationMessage: string | null = null;
-  if (location.kind === "searching") locationMessage = "กำลังหาตำแหน่งของคุณ";
-  else if (location.kind === "denied") locationMessage = "ยังไม่ได้อนุญาตตำแหน่ง เลือกจุดขึ้นรถเองได้";
+  if (location.kind === "denied") locationMessage = "ยังไม่ได้อนุญาตตำแหน่ง เลือกจุดขึ้นรถเองได้";
   else if (location.kind === "unavailable") locationMessage = "หาตำแหน่งไม่ได้ ลองใหม่หรือเลือกจุดขึ้นรถเอง";
-  return { ...arrival, selected, selection, select, locate, locationMessage, route, estimate, routeStatus, refreshRoute, routeNotice: route && entry?.kind === "error" ? entry.message : null, routeLoading: Boolean(stopId && !demo && !arrival.arrived && (!stable || !entry || entry.kind === "loading")), canRefreshRoute: stable && !demo && !arrival.arrived };
+  const routeLoading = Boolean(stopId && !demo && !arrival.arrived && (!stable || !entry || entry.kind === "loading"));
+  const routeRefreshing = routeLoading && stable && entry?.kind === "loading" && entry.trigger === "manual";
+  return { ...arrival, selected, selection, select, locate, locating: location.kind === "searching", locationMessage, route, estimate, routeStatus, refreshRoute, routeNotice: route && entry?.kind === "error" ? entry.message : null, routeLoading, routeRefreshing, canRefreshRoute: stable && !demo && !arrival.arrived && (!routeLoading || routeRefreshing) };
 }

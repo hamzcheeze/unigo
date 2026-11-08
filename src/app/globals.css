@@ -90,10 +90,11 @@ button:disabled { cursor: default; opacity: .55; }
 
 .pickup-panel { border: 1px solid #e5e5e5; border-radius: 12px; background: #f7f7f7; padding: 16px; margin-bottom: 16px; }
 .pickup-panel-arrived { border-color: #eba9c6; background: #fff0f6; }
+.location-notice { position: fixed; inset: 0 0 auto; z-index: 1100; min-height: 32px; padding: 6px 16px; background: #fff0f6; color: var(--muted); font-size: 12px; line-height: 1.6; text-align: center; }
 .pickup-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .pickup-heading h2 { margin: 0; }
 .locate-pickup, .pickup-options button { min-height: 44px; border: 1px solid var(--line); border-radius: 8px; background: white; color: var(--action); padding: 9px 14px; font-size: 13px; }
-.locate-pickup { flex-shrink: 0; }
+.locate-pickup { flex-shrink: 0; white-space: nowrap; }
 .pickup-panel p { color: var(--muted); font-size: 12px; line-height: 1.7; margin: 10px 0 12px; }
 .pickup-panel .pickup-privacy { color: var(--muted); font-size: 11px; }
 .pickup-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
@@ -131,7 +132,7 @@ button:disabled { cursor: default; opacity: .55; }
 .refresh-route { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: #a3a3a3; }
 .refresh-route:hover { background: radial-gradient(circle at center, #ebebeb 0 13px, transparent 13px); }
 .refresh-route svg { transform-origin: center; }
-.refresh-route:disabled svg { animation: refresh-spin .9s linear infinite; }
+.refresh-route[aria-busy="true"] svg { animation: refresh-spin .9s linear infinite; }
 @keyframes refresh-spin { to { transform: rotate(360deg); } }
 .eta-skeleton { display: block; border-radius: 6px; background: linear-gradient(90deg, #e5e5e5 25%, #f0f0f0 50%, #e5e5e5 75%); background-size: 200% 100%; animation: eta-shimmer 1.5s linear infinite; }
 .eta-skeleton-number { width: min(210px, 52vw); height: 42px; }
@@ -139,7 +140,7 @@ button:disabled { cursor: default; opacity: .55; }
 .eta-skeleton-description { width: fit-content; max-width: 100%; }
 .eta-skeleton-description > span { visibility: hidden; }
 @keyframes eta-shimmer { to { background-position: -200% 0; } }
-@media (prefers-reduced-motion: reduce) { .eta-skeleton, .refresh-route:disabled svg { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .eta-skeleton, .refresh-route[aria-busy="true"] svg { animation: none; } }
 .pickup-eta small { color: var(--muted); font-size: 11px; }
 .pickup-label { color: var(--ink); border-color: var(--line); box-shadow: none; font-family: inherit; }
 @media (max-width: 700px) {

@@ -117,7 +117,7 @@ export function ResidentTracker({ demo, usb = false, initialDemoScenario = "init
   const livePickup = usePickup({ position: livePosition.position, vehicleId: selectedId, now: now || Date.now(), demo: demo || usb });
   const demoSelection = useMemo<PickupSelection | null>(() => scenario === "initial" ? null : { stopId: demoStopId, source: "manual", revision: demoRevision }, [scenario, demoStopId, demoRevision]);
   const preview = demo ? demoState({ scenario, vehicleId: selectedId, stopId: demoStopId, selection: demoSelection, now: now || Date.now(),
-    select: id => { setDemoStopId(id); setDemoRevision(value => value + 1); if (scenario === "initial") setScenario("estimated"); },
+    select: id => { setDemoStopId(id); setDemoRevision(value => value + 1); setScenario("estimated"); },
     locate: () => { setDemoStopId("tha-phra"); setDemoRevision(value => value + 1); setScenario("estimated"); },
     refreshRoute: () => setScenario("estimated"),
   }) : null;
@@ -129,6 +129,7 @@ export function ResidentTracker({ demo, usb = false, initialDemoScenario = "init
   const reconnect = useCallback(() => { if (demo) setScenario("estimated"); else setRefresh((value) => value + 1); }, [demo]);
 
   return <main className={"site" + (pickup.reloading ? " site-reloading" : "")}>
+    {pickup.locationMessage && <div className="location-notice" role="status">{pickup.locationMessage}</div>}
     <header className="header">
       <h1 className="header-title"><span className="header-name">รถชมพู</span>{" "}<span className="header-descriptor">ยูนิโอ จรัญฯ 3</span></h1>
     </header>
@@ -143,7 +144,10 @@ export function ResidentTracker({ demo, usb = false, initialDemoScenario = "init
     </nav>
 
     <section className={"pickup-panel" + (pickup.selected ? " pickup-panel-selected" : "") + (pickup.arrived ? " pickup-panel-arrived" : "")} aria-labelledby="pickup-heading">
-      <div className="pickup-heading"><div className="pickup-intro"><h2 id="pickup-heading">ขึ้นรถกลับคอนโด</h2>{!pickup.selected && <p>เลือกจุดขึ้นรถเพื่อดูเวลาถึงโดยประมาณ</p>}</div><button className="locate-pickup" onClick={pickup.locate}>จุดขึ้นรถใกล้ฉัน</button></div>
+      <div className="pickup-heading">
+        <div className="pickup-intro"><h2 id="pickup-heading">ขึ้นรถกลับคอนโด</h2>{!pickup.selected && <p>เลือกจุดขึ้นรถเพื่อดูเวลาถึงโดยประมาณ</p>}</div>
+        <button className="locate-pickup" disabled={pickup.locating} aria-busy={pickup.locating} onClick={pickup.locate}>จุดขึ้นรถใกล้ฉัน</button>
+      </div>
       {pickup.selected ? <div className="pickup-eta" aria-busy={pickup.routeLoading}>
         <div className="eta-heading">
           <div className="eta-value" role="status">
@@ -151,7 +155,7 @@ export function ResidentTracker({ demo, usb = false, initialDemoScenario = "init
               pickup.estimate?.kind === "estimated" ? <span className="eta-number">{pickup.estimate.remainingMinutes <= 2 ? "รถใกล้จะมาถึงแล้ว" : `ประมาณ ${pickup.estimate.remainingMinutes} นาที`}</span> :
               <span>{pickup.routeStatus || "ยังไม่มีเวลาถึงโดยประมาณ"}</span>}
           </div>
-          {pickup.canRefreshRoute && <button className="refresh-route" aria-label="อัพเดตเส้นทาง" title="อัพเดตเส้นทาง" disabled={pickup.routeLoading} onClick={pickup.refreshRoute}>
+          {pickup.canRefreshRoute && <button className="refresh-route" aria-label="อัพเดตเส้นทาง" title="อัพเดตเส้นทาง" aria-busy={pickup.routeRefreshing} disabled={pickup.routeLoading} onClick={pickup.refreshRoute}>
             <svg width="16" height="16" viewBox="0 0 32 32" fill="currentColor" aria-hidden="true"><path d="M9 5.6A12 12 0 0 1 28 16h4l-7 12-7-12h6A8 8 0 0 0 11.3 9.1Z" /><path d="M9 5.6A12 12 0 0 1 28 16h4l-7 12-7-12h6A8 8 0 0 0 11.3 9.1Z" transform="rotate(180 16 16)" /></svg>
           </button>}
         </div>
@@ -161,7 +165,6 @@ export function ResidentTracker({ demo, usb = false, initialDemoScenario = "init
           pickup.estimate?.kind === "estimated" && <small>{ETA_DESCRIPTION}</small>}
         {!pickup.arrived && !pickup.routeLoading && pickup.estimate?.kind === "estimated" && pickup.routeNotice && <small role="status">{pickup.routeNotice}</small>}
       </div> : null}
-      {pickup.locationMessage && <p role="status">{pickup.locationMessage}</p>}
       <div className="pickup-options">{PICKUP_STOPS.map(stop => <button key={stop.id} aria-pressed={pickup.selected?.id === stop.id} onClick={() => pickup.select(stop.id)}>{stop.label}</button>)}</div>
     </section>
 
