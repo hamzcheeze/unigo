@@ -120,5 +120,5 @@ export function usePickup({ position, vehicleId, now, demo }: { position: Positi
   if (location.kind === "searching") locationMessage = "กำลังหาตำแหน่งของคุณ";
   else if (location.kind === "denied") locationMessage = "ยังไม่ได้อนุญาตตำแหน่ง เลือกจุดขึ้นรถเองได้";
   else if (location.kind === "unavailable") locationMessage = "หาตำแหน่งไม่ได้ ลองใหม่หรือเลือกจุดขึ้นรถเอง";
-  return { ...arrival, selected, selection, select, locate, locationMessage, route, estimate, routeStatus, refreshRoute, routeNotice: route && entry?.kind === "error" ? entry.message : null, routeLoading: stable && !arrival.arrived && (entry?.kind === "loading" || Boolean(stopId && visible && !demo && !entry)), canRefreshRoute: stable && !demo && !arrival.arrived };
+  return { ...arrival, selected, selection, select, locate, locationMessage, route, estimate, routeStatus, refreshRoute, routeNotice: route && entry?.kind === "error" ? entry.message : null, routeLoading: Boolean(stopId && !demo && !arrival.arrived && (!stable || !entry || entry.kind === "loading")), canRefreshRoute: stable && !demo && !arrival.arrived };
 }

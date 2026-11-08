@@ -10,7 +10,7 @@ export const demoScenarioSchema = z.enum([
 ]);
 export type DemoScenario = z.infer<typeof demoScenarioSchema>;
 export const DEMO_SCENARIOS = {
-  initial: "หน้าแรก ก่อนเลือกจุดขึ้นรถ", estimated: "เวลาถึงและระยะทาง", near: "รถใกล้จะถึงแล้ว", arrived: "รถมาถึงแล้ว",
+  initial: "หน้าแรก ก่อนเลือกจุดขึ้นรถ", estimated: "เวลาถึงและระยะทาง", near: "รถใกล้จะมาถึงแล้ว", arrived: "รถมาถึงแล้ว",
   loading: "กำลังหาเส้นทาง", refreshing: "กำลังอัพเดตเส้นทาง", "no-gps": "ยังไม่มีตำแหน่งรถ",
   "stale-gps": "พิกัดรถเก่า", "inaccurate-gps": "GPS รถคลาดเคลื่อนสูง", "route-error": "โหลดเส้นทางไม่ได้",
   "route-data-error": "ข้อมูลเส้นทางไม่ถูกต้อง", "route-mismatch": "เส้นทางไม่ตรงกับรถหรือจุดขึ้นรถ", "route-cancelled": "หยุดอัพเดตเส้นทาง", "waiting-tab": "รอกลับมาเปิดหน้าเว็บ", "position-invalid": "ข้อมูลตำแหน่งไม่ถูกต้อง",
@@ -48,7 +48,7 @@ export function demoState({ scenario, vehicleId, stopId, selection, now, select,
     "waiting-tab": "รอกลับมาเปิดหน้าเว็บเพื่อหาเส้นทาง",
   };
   const failure = routeErrors[scenario] !== undefined;
-  const routeLoading = scenario === "loading" || scenario === "refreshing";
+  const routeLoading = waiting || scenario === "waiting-tab" || scenario === "loading" || scenario === "refreshing";
   const arrived = scenario === "arrived";
   const routeError = "โหลดเส้นทางไม่ได้ กรุณากดอัพเดตเส้นทางเพื่อลองใหม่";
   return {

@@ -15,6 +15,7 @@ type Connection = "connecting" | "connected" | "reconnecting" | "offline" | "unc
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const configured = Boolean(supabaseUrl && supabaseKey);
+const ETA_DESCRIPTION = "ประเมินจากสภาพการจราจรล่าสุด เวลาจริงอาจคลาดเคลื่อนได้";
 
 const usbEventSchema = z.object({ position: positionSchema.nullable(), connected: z.boolean(), error: z.string().nullable() });
 
@@ -84,7 +85,11 @@ function usePosition(vehicleId: VehicleId, demo: boolean, usb: boolean, refresh:
         else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") setConnection(navigator.onLine ? "reconnecting" : "offline");
         else if (status === "CLOSED") setConnection("offline");
       });
-    const onVisible = () => { if (document.visibilityState === "visible" && active()) setRecovery((value) => value + 1); };
+    const onVisible = () => {
+      if (document.visibilityState !== "visible" || !active()) return;
+      if (channel.state === "closed" || channel.state === "errored") setRecovery((value) => value + 1);
+      else void fetchSnapshot();
+    };
     const onOnline = () => { if (active()) { setConnection("reconnecting"); setRecovery((value) => value + 1); } };
     const onOffline = () => { if (active()) setConnection("offline"); };
     document.addEventListener("visibilitychange", onVisible);
@@ -143,17 +148,17 @@ export function ResidentTracker({ demo, usb = false, initialDemoScenario = "init
         <div className="eta-heading">
           <div className="eta-value" role="status">
             {pickup.arrived ? <span className="eta-number eta-arrived">รถมาถึงแล้ว</span> : pickup.routeLoading ? <span className="eta-skeleton eta-skeleton-number" aria-label="กำลังอัพเดตเวลาถึง" /> :
-              pickup.estimate?.kind === "estimated" ? <span className="eta-number">{pickup.estimate.remainingMinutes <= 2 ? "รถใกล้จะถึงแล้ว" : `ประมาณ ${pickup.estimate.remainingMinutes} นาที`}</span> :
-              <span>{!position ? "ยังไม่ได้เชื่อมต่อระบบพิกัด" : pickup.routeStatus || "ยังไม่มีเวลาถึงโดยประมาณ"}</span>}
+              pickup.estimate?.kind === "estimated" ? <span className="eta-number">{pickup.estimate.remainingMinutes <= 2 ? "รถใกล้จะมาถึงแล้ว" : `ประมาณ ${pickup.estimate.remainingMinutes} นาที`}</span> :
+              <span>{pickup.routeStatus || "ยังไม่มีเวลาถึงโดยประมาณ"}</span>}
           </div>
           {pickup.canRefreshRoute && <button className="refresh-route" aria-label="อัพเดตเส้นทาง" title="อัพเดตเส้นทาง" disabled={pickup.routeLoading} onClick={pickup.refreshRoute}>
             <svg width="16" height="16" viewBox="0 0 32 32" fill="currentColor" aria-hidden="true"><path d="M9 5.6A12 12 0 0 1 28 16h4l-7 12-7-12h6A8 8 0 0 0 11.3 9.1Z" /><path d="M9 5.6A12 12 0 0 1 28 16h4l-7 12-7-12h6A8 8 0 0 0 11.3 9.1Z" transform="rotate(180 16 16)" /></svg>
           </button>}
         </div>
-        {pickup.arrived ? <span className="arrival-stop">ถึงจุดขึ้นรถ {pickup.selected.label} แล้ว</span> : pickup.routeLoading ? <span className="eta-skeleton eta-skeleton-distance" aria-hidden="true" /> :
+        {pickup.arrived ? null : pickup.routeLoading ? <span className="eta-skeleton eta-skeleton-distance" aria-hidden="true" /> :
           !pickup.arrived && pickup.estimate?.kind === "estimated" && <span>{pickup.estimate.distanceMeters === null ? "กดรีเฟรชเพื่อประเมินระยะทางใหม่" : <>ห่างออกไป {(pickup.estimate.distanceMeters / 1000).toFixed(1)} กม.</>}</span>}
-        {pickup.arrived ? <small className="arrival-next">ดูตำแหน่งรถบนแผนที่และเตรียมขึ้นรถ</small> : pickup.routeLoading ? <span className="eta-skeleton eta-skeleton-description" aria-hidden="true" /> :
-          pickup.estimate?.kind === "estimated" && <small>ประเมินจากสภาพการจราจรล่าสุด เวลาจริงอาจคลาดเคลื่อนได้</small>}
+        {pickup.arrived ? <small className="arrival-next">ขอบคุณที่ใช้บริการ</small> : pickup.routeLoading ? <small className="eta-skeleton eta-skeleton-description" aria-hidden="true"><span>{ETA_DESCRIPTION}</span></small> :
+          pickup.estimate?.kind === "estimated" && <small>{ETA_DESCRIPTION}</small>}
         {!pickup.arrived && !pickup.routeLoading && pickup.estimate?.kind === "estimated" && pickup.routeNotice && <small role="status">{pickup.routeNotice}</small>}
       </div> : null}
       {pickup.locationMessage && <p role="status">{pickup.locationMessage}</p>}
