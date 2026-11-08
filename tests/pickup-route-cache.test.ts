@@ -329,3 +329,111 @@ test("receipt time starts after loading and only a successful refresh resets the
   await cache.retry(bts);
   assert.deepEqual(cache.get(bts), { kind: "error", previousSnapshot: refreshed, message: "refresh failure" });
 });
+
+test("invalidating a vehicle clears both stops and preserves other vehicles", async () => {
+  const calls: RoutePair[] = [];
+  const cache = new PickupRouteCache(async pair => { calls.push(pair); return route(pair); });
+  await cache.load(bts);
+  await cache.load(mrt);
+  await cache.load(otherVehicle);
+  cache.invalidateVehicle("SHUTTLE-01");
+  cache.invalidateVehicle("SHUTTLE-01");
+  assert.equal(cache.get(bts), undefined);
+  assert.equal(cache.get(mrt), undefined);
+  assert.deepEqual(cache.get(otherVehicle), { kind: "ready", snapshot: { route: route(otherVehicle), receivedAt: now } });
+  await cache.load(bts);
+  await cache.load(otherVehicle);
+  assert.deepEqual(calls, [bts, mrt, otherVehicle, bts]);
+});
+
+test("late success or failure after invalidation cannot replace or detach a new request", async () => {
+  for (const outcome of ["success", "failure"]) {
+    const oldResponse = Promise.withResolvers<RoadRoute>();
+    const newResponse = Promise.withResolvers<RoadRoute>();
+    const signals: AbortSignal[] = [];
+    const cache = new PickupRouteCache((_pair, signal) => {
+      signals.push(signal);
+      return signals.length === 1 ? oldResponse.promise : newResponse.promise;
+    });
+    const oldRequest = cache.load(bts);
+    await Promise.resolve();
+    cache.invalidateVehicle("SHUTTLE-01");
+    assert.equal(signals[0]?.aborted, true);
+    const replacement = cache.load(bts);
+    await Promise.resolve();
+    if (outcome === "success") oldResponse.resolve(route(bts));
+    else oldResponse.reject(new Error("old failure"));
+    await oldRequest;
+    assert.deepEqual(cache.get(bts), { kind: "loading", previousSnapshot: null });
+    assert.equal(cache.load(bts), replacement);
+    assert.equal(signals.length, 2);
+    const updatedRoute = { ...route(bts), sourceRevision: 2 };
+    newResponse.resolve(updatedRoute);
+    await replacement;
+    assert.deepEqual(cache.get(bts), { kind: "ready", snapshot: { route: updatedRoute, receivedAt: now } });
+  }
+});
+
+test("invalidation during a retry wait cancels that vehicle without retaining an error", async () => {
+  const waiting = Promise.withResolvers<void>();
+  let calls = 0;
+  const cache = new PickupRouteCache(async pair => {
+    if (++calls === 1) throw new RouteUnavailableError();
+    return route(pair);
+  }, signal => new Promise((_resolve, reject) => {
+    signal.addEventListener("abort", () => reject(new Error("cancelled")), { once: true });
+    waiting.resolve();
+  }));
+  const pending = cache.load(bts);
+  await waiting.promise;
+  cache.invalidateVehicle("SHUTTLE-01");
+  await pending;
+  assert.equal(calls, 1);
+  assert.equal(cache.get(bts), undefined);
+  await cache.load(bts);
+  assert.equal(calls, 2);
+  assert.deepEqual(cache.get(bts), { kind: "ready", snapshot: { route: route(bts), receivedAt: now } });
+});
+
+test("invalidation cannot restore a route when its aborted loader finishes late", async () => {
+  const response = Promise.withResolvers<RoadRoute>();
+  const cache = new PickupRouteCache(() => response.promise);
+  const pending = cache.load(bts);
+  await Promise.resolve();
+  cache.invalidateVehicle("SHUTTLE-01");
+  response.resolve(route(bts));
+  await pending;
+  assert.equal(cache.get(bts), undefined);
+});
+
+test("invalidating one vehicle leaves another vehicle's pending request active", async () => {
+  const firstResponse = Promise.withResolvers<RoadRoute>();
+  const otherResponse = Promise.withResolvers<RoadRoute>();
+  const signals = new Map<string, AbortSignal>();
+  const cache = new PickupRouteCache((pair, signal) => {
+    signals.set(pair.vehicleId, signal);
+    return pair.vehicleId === bts.vehicleId ? firstResponse.promise : otherResponse.promise;
+  });
+  const first = cache.load(bts);
+  const other = cache.load(otherVehicle);
+  await Promise.resolve();
+  cache.invalidateVehicle("SHUTTLE-01");
+  assert.equal(signals.get("SHUTTLE-01")?.aborted, true);
+  assert.equal(signals.get("SHUTTLE-02")?.aborted, false);
+  firstResponse.resolve(route(bts));
+  otherResponse.resolve(route(otherVehicle));
+  await Promise.all([first, other]);
+  assert.equal(cache.get(bts), undefined);
+  assert.deepEqual(cache.get(otherVehicle), { kind: "ready", snapshot: { route: route(otherVehicle), receivedAt: now } });
+});
+
+test("page cancellation during a successful loader prevents a late ready state", async () => {
+  const response = Promise.withResolvers<RoadRoute>();
+  const cache = new PickupRouteCache(() => response.promise);
+  const pending = cache.load(bts);
+  await Promise.resolve();
+  cache.cancelRetries();
+  response.resolve(route(bts));
+  await pending;
+  assert.deepEqual(cache.get(bts), { kind: "error", previousSnapshot: null, message: "หยุดการอัพเดตเส้นทางแล้ว" });
+});

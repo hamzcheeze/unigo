@@ -9,7 +9,7 @@ const prompt = Prompt({
   variable: "--font-prompt",
 });
 
-export const metadata: Metadata = { title: "UNiGO | Unio Charan 3", description: "ตำแหน่งรถรับส่ง Unio Charan 3 และเวลาอัปเดตล่าสุด", icons: { icon: "/unigo-logo.png", apple: "/unigo-logo.png" }, robots: { index: false, follow: false } };
+export const metadata: Metadata = { title: "รถชมพู | Unio Charan 3", description: "ตำแหน่งรถรับส่ง Unio Charan 3 และเวลาอัปเดตล่าสุด", icons: { icon: "/unigo-logo.png", apple: "/unigo-logo.png" }, robots: { index: false, follow: false } };
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return <html lang="th" className={prompt.variable}><body>{children}</body></html>;
 }

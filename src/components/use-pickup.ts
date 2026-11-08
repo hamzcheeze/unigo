@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { PICKUP_STOPS, nearestPickup, routeResponseSchema, type PickupSelection, type PickupStopId } from "@/lib/pickups";
-import { freshness, type Position, type VehicleId } from "@/lib/domain";
+import { type Position, type VehicleId } from "@/lib/domain";
+import { advanceRouteSignal, routeSignalGap, usableRoutePosition, type RouteSignal } from "@/lib/route-signal";
 import { PickupRouteCache, RouteUnavailableError } from "@/lib/pickup-route-cache";
 import { estimateRemainingRoute } from "@/lib/route-estimate";
 import { usePickupArrival } from "./use-pickup-arrival";
@@ -18,10 +19,11 @@ export function usePickup({ position, vehicleId, now, demo }: { position: Positi
   const [location, setLocation] = useState<LocationState>({ kind: "idle" });
   const [selection, setSelection] = useState<PickupSelection | null>(null);
   const locationRequest = useRef(0);
-  const [routeCache] = useState(() => new PickupRouteCache(async ({ vehicleId, stopId }) => {
+  const [signal, setSignal] = useState<RouteSignal>({ vehicleId, kind: "waiting" });
+  const [routeCache] = useState(() => new PickupRouteCache(async ({ vehicleId, stopId }, signal) => {
     const response = await fetch("/api/route", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ vehicleId, stopId }), signal: AbortSignal.timeout(15000),
+      body: JSON.stringify({ vehicleId, stopId }), signal: AbortSignal.any([signal, AbortSignal.timeout(15000)]),
     }).catch(() => { throw new Error("โหลดเส้นทางไม่ได้ กรุณากดอัพเดตเส้นทางเพื่อลองใหม่"); });
     if (response.status === 503) throw new RouteUnavailableError();
     if (!response.ok) throw new Error("โหลดเส้นทางไม่ได้ กรุณากดอัพเดตเส้นทางเพื่อลองใหม่");
@@ -59,25 +61,36 @@ export function usePickup({ position, vehicleId, now, demo }: { position: Positi
   }, [enabled, attempt]);
   const selected = PICKUP_STOPS.find(stop => stop.id === selection?.stopId) ?? null;
   const stopId = selected?.id ?? null;
-  const live = Boolean(position && position.vehicle_id === vehicleId && freshness(position, now).kind === "live" && position.accuracy_meters !== null && position.accuracy_meters <= 50);
+  const live = usableRoutePosition(position, vehicleId, now);
+  const gap = routeSignalGap(signal, position, vehicleId);
   useEffect(() => {
-    if (!stopId || demo || !live || !visible) return;
-    let active = true;
-    void routeCache.load({ vehicleId, stopId }).then(() => {
-      if (active) renderRoutes(value => value + 1);
-    });
-    return () => { active = false; };
-  }, [vehicleId, stopId, live, visible, demo, routeCache]);
+    if (!demo) setSignal(previous => advanceRouteSignal(previous, position, vehicleId, now));
+  }, [position, vehicleId, now, demo]);
+  useEffect(() => {
+    if ((!live || gap) && !demo) routeCache.invalidateVehicle(vehicleId);
+  }, [live, gap, demo, vehicleId, routeCache]);
+  const stable = live && !gap && signal.vehicleId === vehicleId && signal.kind === "ready";
   const entry = stopId ? routeCache.get({ vehicleId, stopId }) : undefined;
-  const snapshot = entry?.kind === "ready" ? entry.snapshot : entry?.previousSnapshot ?? null;
+  const snapshot = stable ? (entry?.kind === "ready" ? entry.snapshot : entry?.previousSnapshot ?? null) : null;
   const route = snapshot?.route ?? null;
   const estimate = snapshot ? estimateRemainingRoute({ snapshot, position, now }) : null;
   const arrival = usePickupArrival({ vehicleId, selection, position, route, now, demo });
+  useEffect(() => {
+    if (!stopId || demo || !stable || !visible || arrival.arrived) return;
+    let active = true;
+    const request = routeCache.load({ vehicleId, stopId });
+    renderRoutes(value => value + 1);
+    void request.then(() => {
+      if (active) renderRoutes(value => value + 1);
+    });
+    return () => { active = false; };
+  }, [vehicleId, stopId, stable, visible, demo, routeCache, arrival.arrived]);
   useEffect(() => { if (arrival.arrived) routeCache.cancelRetries(); }, [arrival.arrived, routeCache]);
   let routeStatus = "เลือกจุดขึ้นรถเพื่อดูเส้นทาง";
   if (stopId) {
     if (demo) routeStatus = "โหมดตัวอย่างไม่คำนวณเวลาถึงจุดขึ้นรถ";
     else if (!live) routeStatus = "รอตำแหน่งรถที่ชัดเจนและเป็นปัจจุบัน";
+    else if (!stable) routeStatus = "กำลังรอสัญญาณรถให้เสถียร";
     else if (entry?.kind === "loading") routeStatus = route ? "กำลังอัพเดตเส้นทาง..." : "กำลังหาเส้นทาง...";
     else if (entry?.kind === "error") routeStatus = entry.message;
     else if (estimate?.kind === "unavailable") {
@@ -86,7 +99,7 @@ export function usePickup({ position, vehicleId, now, demo }: { position: Positi
     else routeStatus = visible ? "กำลังหาเส้นทาง..." : "รอกลับมาเปิดหน้าเว็บเพื่อหาเส้นทาง";
   }
   const refreshRoute = () => {
-    if (!stopId || !live || demo || arrival.arrived) return;
+    if (!stopId || !stable || demo || arrival.arrived) return;
     const request = routeCache.retry({ vehicleId, stopId });
     renderRoutes(value => value + 1);
     void request.then(() => renderRoutes(value => value + 1));
@@ -107,5 +120,5 @@ export function usePickup({ position, vehicleId, now, demo }: { position: Positi
   if (location.kind === "searching") locationMessage = "กำลังหาตำแหน่งของคุณ";
   else if (location.kind === "denied") locationMessage = "ยังไม่ได้อนุญาตตำแหน่ง เลือกจุดขึ้นรถเองได้";
   else if (location.kind === "unavailable") locationMessage = "หาตำแหน่งไม่ได้ ลองใหม่หรือเลือกจุดขึ้นรถเอง";
-  return { ...arrival, selected, selection, select, locate, locationMessage, route, estimate, routeStatus, refreshRoute, routeNotice: route && entry?.kind === "error" ? entry.message : null, routeLoading: !arrival.arrived && (entry?.kind === "loading" || Boolean(stopId && live && visible && !demo && !entry)), canRefreshRoute: live && !demo && !arrival.arrived };
+  return { ...arrival, selected, selection, select, locate, locationMessage, route, estimate, routeStatus, refreshRoute, routeNotice: route && entry?.kind === "error" ? entry.message : null, routeLoading: stable && !arrival.arrived && (entry?.kind === "loading" || Boolean(stopId && visible && !demo && !entry)), canRefreshRoute: stable && !demo && !arrival.arrived };
 }

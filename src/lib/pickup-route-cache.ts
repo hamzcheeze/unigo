@@ -23,18 +23,31 @@ function waitForRetry(signal: AbortSignal): Promise<void> {
 
 export class PickupRouteCache {
   private readonly entries = new Map<string, PickupRouteEntry>();
-  private readonly pending = new Map<string, Promise<void>>();
+  private readonly pending = new Map<string, { promise: Promise<void>; controller: AbortController }>();
 
   private readonly retryControllers = new Set<AbortController>();
 
   constructor(
-    private readonly loader: (pair: RoutePair) => Promise<RoadRoute>,
+    private readonly loader: (pair: RoutePair, signal: AbortSignal) => Promise<RoadRoute>,
     private readonly waitToRetry: (signal: AbortSignal) => Promise<void> = waitForRetry,
     private readonly clock: () => number = Date.now,
   ) {}
 
   cancelRetries() {
     for (const controller of this.retryControllers) controller.abort();
+  }
+
+  invalidateVehicle(vehicleId: VehicleId) {
+    const prefix = vehicleId + ":";
+    for (const key of this.entries.keys()) {
+      if (key.startsWith(prefix)) this.entries.delete(key);
+    }
+    for (const [key, request] of this.pending) {
+      if (!key.startsWith(prefix)) continue;
+      this.pending.delete(key);
+      this.retryControllers.delete(request.controller);
+      request.controller.abort();
+    }
   }
 
   private key(pair: RoutePair) {
@@ -48,7 +61,7 @@ export class PickupRouteCache {
   load(pair: RoutePair): Promise<void> {
     const key = this.key(pair);
     const existing = this.pending.get(key);
-    if (existing) return existing;
+    if (existing) return existing.promise;
     if (this.entries.has(key)) return Promise.resolve();
     return this.request(pair, null);
   }
@@ -62,8 +75,13 @@ export class PickupRouteCache {
       let retries = 0;
       while (true) {
         if (controller.signal.aborted) throw new Error("หยุดการอัพเดตเส้นทางแล้ว");
-        try { return await this.loader(pair); }
+        try {
+          const route = await this.loader(pair, controller.signal);
+          if (controller.signal.aborted) throw new Error("หยุดการอัพเดตเส้นทางแล้ว");
+          return route;
+        }
         catch (error) {
+          if (controller.signal.aborted) throw new Error("หยุดการอัพเดตเส้นทางแล้ว");
           if (!(error instanceof RouteUnavailableError) || retries >= 3) throw error;
           retries++;
           await this.waitToRetry(controller.signal);
@@ -71,23 +89,25 @@ export class PickupRouteCache {
       }
     };
     const request = Promise.resolve().then(load).then((route) => {
+      if (this.pending.get(key)?.controller !== controller) return;
       if (route.vehicleId !== pair.vehicleId || route.stopId !== pair.stopId) {
         throw new Error("ข้อมูลเส้นทางไม่ตรงกับรถหรือจุดขึ้นรถที่เลือก");
       }
       this.entries.set(key, { kind: "ready", snapshot: { route, receivedAt: this.clock() } });
     }).catch((error: unknown) => {
+      if (this.pending.get(key)?.controller !== controller) return;
       this.entries.set(key, { kind: "error", previousSnapshot, message: error instanceof Error ? error.message : "โหลดเส้นทางไม่ได้ กรุณาลองใหม่" });
     }).finally(() => {
-      this.pending.delete(key);
+      if (this.pending.get(key)?.controller === controller) this.pending.delete(key);
       this.retryControllers.delete(controller);
     });
-    this.pending.set(key, request);
+    this.pending.set(key, { promise: request, controller });
     return request;
   }
 
   retry(pair: RoutePair): Promise<void> {
     const existing = this.pending.get(this.key(pair));
-    if (existing) return existing;
+    if (existing) return existing.promise;
     const previous = this.get(pair);
     const previousSnapshot = previous?.kind === "ready" ? previous.snapshot : previous?.previousSnapshot ?? null;
     return this.request(pair, previousSnapshot);
