@@ -151,9 +151,9 @@ export function ResidentTracker({ demo, usb = false, initialDemoScenario = "init
           </button>}
         </div>
         {pickup.arrived ? <span className="arrival-stop">ถึงจุดขึ้นรถ {pickup.selected.label} แล้ว</span> : pickup.routeLoading ? <span className="eta-skeleton eta-skeleton-distance" aria-hidden="true" /> :
-          !pickup.arrived && pickup.estimate?.kind === "estimated" && <span>{pickup.estimate.distanceMeters === null ? "กดรีเฟรชเพื่อประเมินระยะทางใหม่" : <>ห่างออกไป {(pickup.estimate.distanceMeters / 1000).toFixed(1)} กม. จากจุดที่คุณเลือก</>}</span>}
+          !pickup.arrived && pickup.estimate?.kind === "estimated" && <span>{pickup.estimate.distanceMeters === null ? "กดรีเฟรชเพื่อประเมินระยะทางใหม่" : <>ห่างออกไป {(pickup.estimate.distanceMeters / 1000).toFixed(1)} กม.</>}</span>}
         {pickup.arrived ? <small className="arrival-next">ดูตำแหน่งรถบนแผนที่และเตรียมขึ้นรถ</small> : pickup.routeLoading ? <span className="eta-skeleton eta-skeleton-description" aria-hidden="true" /> :
-          pickup.estimate?.kind === "estimated" && <small>ระยะทางจาก GPS บนเส้นทางที่บันทึกไว้ เวลานับถอยหลังจากการอัพเดตล่าสุด</small>}
+          pickup.estimate?.kind === "estimated" && <small>ประเมินจากสภาพการจราจรล่าสุด เวลาจริงอาจคลาดเคลื่อนได้</small>}
         {!pickup.arrived && !pickup.routeLoading && pickup.estimate?.kind === "estimated" && pickup.routeNotice && <small role="status">{pickup.routeNotice}</small>}
       </div> : null}
       {pickup.locationMessage && <p role="status">{pickup.locationMessage}</p>}

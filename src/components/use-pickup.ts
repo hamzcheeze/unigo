@@ -90,7 +90,7 @@ export function usePickup({ position, vehicleId, now, demo }: { position: Positi
   if (stopId) {
     if (demo) routeStatus = "โหมดตัวอย่างไม่คำนวณเวลาถึงจุดขึ้นรถ";
     else if (!live) routeStatus = "รอตำแหน่งรถที่ชัดเจนและเป็นปัจจุบัน";
-    else if (!stable) routeStatus = "กำลังรอสัญญาณรถให้เสถียร";
+    else if (!stable) routeStatus = "กำลังอัพเดตสัญญาณ GPS ของรถใหม่...";
     else if (entry?.kind === "loading") routeStatus = route ? "กำลังอัพเดตเส้นทาง..." : "กำลังหาเส้นทาง...";
     else if (entry?.kind === "error") routeStatus = entry.message;
     else if (estimate?.kind === "unavailable") {
